@@ -1,0 +1,35 @@
+/* App.css — clear Vite defaults, dark antd overrides */
+#root { width: 100%; max-width: 100%; border: none; }
+
+/* Antd dark overrides */
+.ant-select-selector {
+  background: rgba(0, 245, 255, 0.04) !important;
+  border: 1px solid rgba(0, 245, 255, 0.2) !important;
+  border-radius: 8px !important;
+  color: #e8f4ff !important;
+  height: auto !important;
+  padding: 8px 14px !important;
+}
+.ant-select-selection-placeholder {
+  color: #4a6178 !important;
+}
+.ant-select-selection-item {
+  color: #e8f4ff !important;
+}
+.ant-form-item-label > label {
+  color: #00f5ff !important;
+  font-family: 'Orbitron', monospace !important;
+  font-size: 0.72rem !important;
+  letter-spacing: 1.5px !important;
+  text-transform: uppercase !important;
+}
+.ant-form-item-explain-error {
+  color: #ff6b6b !important;
+  font-size: 0.78rem !important;
+}
+.ant-progress-text {
+  color: #e8f4ff !important;
+}
+.ant-message {
+  z-index: 9999 !important;
+}
