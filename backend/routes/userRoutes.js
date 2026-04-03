@@ -1,5 +1,6 @@
 import express from "express";
 import db from "../db.js";
+import axios from "axios";
 
 const router = express.Router();
 
@@ -29,13 +30,40 @@ router.post("/register", async (req, res) => {
         );
         const userId = userResult.insertId;
 
-        // 2. Insert into eye_details table (if eye data provided)
-        if (condition || eye || severity) {
-            await connection.execute(
-                "INSERT INTO eye_details (user_id, condition_type, affected_eye, severity) VALUES (?, ?, ?, ?)",
-                [userId, condition || null, eye || null, severity || null]
+
+
+
+        try {
+            const b64 = photo.split(',')[1]; // 🔥 FIX
+
+            const response = await axios.post(
+                'http://localhost:8766/analyze_image',
+                {
+                    image_base64: b64,
+                    dominant: eye,
+                }
             );
+
+            const data = response.data;
+            console.log("AI RESULT:", data);
+
+            const alignment = data?.misalignment?.percentage || 412;
+
+            if (condition || eye || severity) {
+                await connection.execute(
+                    "INSERT INTO eye_details (user_id, condition_type, affected_eye, severity, alignment) VALUES (?, ?, ?, ?, ?)",
+                    [userId, condition || null, eye || null, severity || null, alignment]
+                );
+            }
+
+        } catch (err) {
+            console.log("AI ERROR:", err.message);
         }
+
+        // 2. Insert into eye_details table (if eye data provided)
+
+
+
 
         // 3. Insert into photos table (if photo provided)
         if (photo && photo !== "none") {
