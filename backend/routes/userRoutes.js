@@ -1,6 +1,9 @@
 import express from "express";
 import db from "../db.js";
 import axios from "axios";
+import multer from "multer";
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 const router = express.Router();
 
@@ -189,20 +192,20 @@ router.get("/health", async (req, res) => {
 });
 
 
-router.post("/scanImage", async (req, res) => {
+router.post("/scanImage", upload.single("photo"), async (req, res) => {
     try {
-        const { photo } = req.body;
-
-        if (!photo) {
+        if (!req.file) {
             return res.status(400).json({
                 success: false,
-                error: "Photo is required"
+                error: "Image file is required"
             });
         }
 
-        // 🔥 Remove base64 prefix
-        const base64 = photo.split(",")[1];
+        console.log("FILE:", req.file);
+        console.log("BODY:", req.body);
 
+        // ✅ Convert image buffer → base64
+        const base64 = req.file.buffer.toString("base64");
         // Call Python AI server
         const response = await axios.post(
             "http://localhost:8766/analyze_image",
@@ -214,6 +217,8 @@ router.post("/scanImage", async (req, res) => {
 
         const aiData = response.data;
 
+        console.log("AI DATA:", aiData);
+
         // Extract alignment
         const alignment = aiData?.misalignment?.percentage || 0;
         const severity = aiData?.misalignment?.severity || "unknown";
@@ -222,7 +227,8 @@ router.post("/scanImage", async (req, res) => {
         res.json({
             success: true,
             alignment,
-            severity
+            severity,
+            aiData
         });
 
     } catch (err) {
