@@ -188,4 +188,51 @@ router.get("/health", async (req, res) => {
     }
 });
 
+
+router.post("/scanImage", async (req, res) => {
+    try {
+        const { photo } = req.body;
+
+        if (!photo) {
+            return res.status(400).json({
+                success: false,
+                error: "Photo is required"
+            });
+        }
+
+        // 🔥 Remove base64 prefix
+        const base64 = photo.split(",")[1];
+
+        // Call Python AI server
+        const response = await axios.post(
+            "http://localhost:8766/analyze_image",
+            {
+                image_base64: base64,
+                dominant: "right"
+            }
+        );
+
+        const aiData = response.data;
+
+        // Extract alignment
+        const alignment = aiData?.misalignment?.percentage || 0;
+        const severity = aiData?.misalignment?.severity || "unknown";
+
+        // ✅ Final clean response
+        res.json({
+            success: true,
+            alignment,
+            severity
+        });
+
+    } catch (err) {
+        console.error("Scan API error:", err.message);
+
+        res.status(500).json({
+            success: false,
+            error: "AI scan failed"
+        });
+    }
+});
+
 export default router;
