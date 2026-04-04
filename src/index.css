@@ -159,11 +159,33 @@ p  { color: var(--text-secondary); margin: 0; }
   33%     { border-color: rgba(168,85,247,0.4); }
   66%     { border-color: rgba(0,255,136,0.4); }
 }
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 6px #00ff88; transform: scale(1); }
+  50%      { box-shadow: 0 0 14px #00ff88, 0 0 28px rgba(0,255,136,0.3); transform: scale(1.2); }
+}
+@keyframes pulse-glow-eye {
+  0%, 100% { filter: drop-shadow(0 0 20px rgba(0,245,255,0.6)); }
+  50%      { filter: drop-shadow(0 0 40px rgba(0,245,255,1)) drop-shadow(0 0 80px rgba(168,85,247,0.4)); }
+}
+@keyframes shimmer-line {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
 
 .animate-fade-up   { animation: fadeInUp 0.7s ease both; }
 .animate-fade-left { animation: fadeInLeft 0.7s ease both; }
 .animate-float     { animation: float 3s ease-in-out infinite; }
 .animate-pulse     { animation: pulse-glow 2s ease-in-out infinite; }
+
+/* ── RESPONSIVE LANDING ── */
+@media (max-width: 768px) {
+  section { padding: 40px 20px !important; }
+  nav { padding: 12px 20px !important; }
+}
 
 /* ── ANTD OVERRIDES (dark gaming) ── */
 .ant-form-item-label > label {

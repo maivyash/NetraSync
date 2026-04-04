@@ -1,0 +1,869 @@
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import confetti from "canvas-confetti";
+import "../styles/orbdrive.css";
+import {
+  startEngine,
+  updateEngine,
+  stopEngine,
+  startWind,
+  updateWind,
+  stopWind,
+  playNitroBoost,
+  playCountdownBeep,
+  playFinish,
+  playWarning,
+  playTireScreech,
+  checkGearShift,
+  resetGears,
+  stopAll,
+} from "./orbDriveAudio";
+
+const BASE_SPEED = 60;
+const MAX_SPEED = 220;
+const TRACK_LENGTH = 1000;
+const ALIGNMENT_THRESHOLD = 45;
+const MFCT_THRESHOLD = 45;
+
+const CAR_START_BOTTOM_PCT = 6;
+const CAR_TRAVEL_PCT = 78;
+
+const MODES = {
+  beginner: {
+    key: "beginner",
+    label: "Beginner",
+    desc: "Slower tunnel • Larger orb • Hold 2–3s",
+    holdSeconds: 2.5,
+    orbBaseSize: 58,
+    orbMinSize: 58,
+    tunnelBaseMul: 0.65,
+    tunnelAccelPerSec: 0,
+    depthWarp: 0,
+    shiftEverySec: 0,
+  },
+  intermediate: {
+    key: "intermediate",
+    label: "Intermediate",
+    desc: "Faster tunnel • Orb shrinks • Depth movement • Hold 4–5s",
+    holdSeconds: 4.5,
+    orbBaseSize: 52,
+    orbMinSize: 36,
+    tunnelBaseMul: 1.0,
+    tunnelAccelPerSec: 0.02,
+    depthWarp: 1,
+    shiftEverySec: 0,
+  },
+  advanced: {
+    key: "advanced",
+    label: "Advanced",
+    desc: "Rapid acceleration • Small orb • Sudden shifts • Hold 6–8s",
+    holdSeconds: 7.0,
+    orbBaseSize: 34,
+    orbMinSize: 30,
+    tunnelBaseMul: 1.15,
+    tunnelAccelPerSec: 0.06,
+    depthWarp: 1,
+    shiftEverySec: 2.2,
+  },
+};
+
+const formatRaceTime = (seconds) => {
+  const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+  const m = Math.floor(safe / 60);
+  const s = safe % 60;
+  const mm = String(m).padStart(2, "0");
+  const ss = s.toFixed(2).padStart(5, "0");
+  return `${mm}:${ss}`;
+};
+
+export default function OrbDrive({ onClose, onExit } = {}) {
+  const navigate = useNavigate();
+
+  const exitToMenu = () => {
+    stopAll();
+    if (onClose) {
+      onClose();
+    } else if (onExit) {
+      onExit();
+    } else {
+      navigate("/dashboard", { replace: true });
+    }
+  };
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => stopAll();
+  }, []);
+
+  const areaRef = useRef(null);
+  const orbPanelRef = useRef(null);
+  const playerCarRef = useRef(null);
+  const finishLineRef = useRef(null);
+  const animationRef = useRef(null);
+  const lastTimeRef = useRef(null);
+  const mouseRef = useRef({ x: 50, y: 50 });
+  const angleRef = useRef(0);
+  const lowAlignRef = useRef(0);
+  const lowMfctRef = useRef(0);
+  const speedRef = useRef(0);
+  const stabilityRef = useRef(0);
+  const progressRef = useRef(0);
+  const endedRef = useRef(false);
+  const timeRef = useRef(0);
+  const raceStatsRef = useRef({ sumAlign: 0, sumFs: 0, count: 0, maxSpeed: 0 });
+  const prevCarFrontYRef = useRef(null);
+  const jitterRef = useRef({ lastX: 50, lastY: 50, ema: 0 });
+  const shiftRef = useRef({ nextAt: 0, offX: 0, offY: 0 });
+
+  const [running, setRunning] = useState(false);
+  const [phase, setPhase] = useState("idle"); // idle | mode | ready | countdown | running | result
+  const [modeKey, setModeKey] = useState("beginner");
+  const [countdown, setCountdown] = useState(null);
+  const [orbPos, setOrbPos] = useState({ x: 50, y: 50 });
+  const [alignment, setAlignment] = useState(0);
+  const [stability, setStability] = useState(0);
+  const [focusStrength, setFocusStrength] = useState(0);
+  const [carSpeed, setCarSpeed] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [time, setTime] = useState(0);
+  const [warning, setWarning] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [resultOpen, setResultOpen] = useState(false);
+  const [raceResult, setRaceResult] = useState(null);
+  const [resetting, setResetting] = useState(false);
+
+  const speedPct = Math.max(0, Math.min(1, carSpeed / MAX_SPEED));
+  const carBottomPct = CAR_START_BOTTOM_PCT + progress * CAR_TRAVEL_PCT;
+  // Keep the PNG car crisp: avoid heavy down-scaling as progress increases.
+  const carScale = Math.max(0.85, 1 - progress * 0.15);
+
+  const mode = MODES[modeKey] ?? MODES.beginner;
+  const holdPct = Math.max(0, Math.min(1, stability / mode.holdSeconds));
+  const canDrive = holdPct >= 1;
+
+  const orbSize = (() => {
+    if (modeKey === "intermediate") {
+      const shrink = Math.min(1, time / 24);
+      return mode.orbBaseSize - (mode.orbBaseSize - mode.orbMinSize) * shrink;
+    }
+    return mode.orbBaseSize;
+  })();
+
+  const handleMouseMove = (e) => {
+    if (!orbPanelRef.current) return;
+    const rect = orbPanelRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    mouseRef.current = {
+      x: Math.max(0, Math.min(100, x)),
+      y: Math.max(0, Math.min(100, y)),
+    };
+  };
+
+  const startGame = () => {
+    setRunning(true);
+    setPhase("running");
+    setProgress(0);
+    setTime(0);
+    setAlignment(0);
+    setStability(0);
+    setFocusStrength(0);
+    setCarSpeed(0);
+    setWarning(false);
+    setIsFocused(false);
+    setResultOpen(false);
+    setRaceResult(null);
+    setResetting(false);
+
+    angleRef.current = 0;
+    lowAlignRef.current = 0;
+    lowMfctRef.current = 0;
+    speedRef.current = 0;
+    stabilityRef.current = 0;
+    lastTimeRef.current = null;
+    progressRef.current = 0;
+    endedRef.current = false;
+    timeRef.current = 0;
+    raceStatsRef.current = { sumAlign: 0, sumFs: 0, count: 0, maxSpeed: 0 };
+    prevCarFrontYRef.current = null;
+    jitterRef.current = { lastX: mouseRef.current.x, lastY: mouseRef.current.y, ema: 0 };
+    shiftRef.current = { nextAt: 0, offX: 0, offY: 0 };
+
+    // Start engine + wind audio
+    resetGears();
+    startEngine();
+    startWind();
+  };
+
+  const resetRace = () => {
+    cancelAnimationFrame(animationRef.current);
+    playTireScreech();
+    stopEngine();
+    stopWind();
+    setRunning(false);
+    setPhase("idle");
+    setCountdown(null);
+    setResetting(true);
+    setResultOpen(false);
+    setRaceResult(null);
+    setProgress(0);
+    setTime(0);
+    setAlignment(0);
+    setStability(0);
+    setFocusStrength(0);
+    setCarSpeed(0);
+    setWarning(false);
+    setIsFocused(false);
+
+    angleRef.current = 0;
+    lowAlignRef.current = 0;
+    lowMfctRef.current = 0;
+    speedRef.current = 0;
+    stabilityRef.current = 0;
+    lastTimeRef.current = null;
+    progressRef.current = 0;
+    endedRef.current = false;
+    timeRef.current = 0;
+    raceStatsRef.current = { sumAlign: 0, sumFs: 0, count: 0, maxSpeed: 0 };
+    prevCarFrontYRef.current = null;
+  };
+
+  const resetForReplay = () => {
+    cancelAnimationFrame(animationRef.current);
+    stopAll();
+    setRunning(false);
+    setCountdown(null);
+    setResetting(false);
+
+    setProgress(0);
+    setTime(0);
+    setAlignment(0);
+    setStability(0);
+    setFocusStrength(0);
+    setCarSpeed(0);
+    setWarning(false);
+    setIsFocused(false);
+
+    angleRef.current = 0;
+    lowAlignRef.current = 0;
+    lowMfctRef.current = 0;
+    speedRef.current = 0;
+    stabilityRef.current = 0;
+    lastTimeRef.current = null;
+    progressRef.current = 0;
+    endedRef.current = false;
+    timeRef.current = 0;
+    raceStatsRef.current = { sumAlign: 0, sumFs: 0, count: 0, maxSpeed: 0 };
+    prevCarFrontYRef.current = null;
+    jitterRef.current = { lastX: mouseRef.current.x, lastY: mouseRef.current.y, ema: 0 };
+    shiftRef.current = { nextAt: 0, offX: 0, offY: 0 };
+  };
+
+  const triggerWin = () => {
+    if (endedRef.current) return;
+    endedRef.current = true;
+
+    playFinish();
+    // Gradually stop engine/wind (playFinish handles engine wind-down)
+    setTimeout(() => { stopEngine(); stopWind(); }, 2000);
+
+    setRunning(false);
+    setPhase("result");
+
+    const count = Math.max(1, raceStatsRef.current.count);
+    const avgAlign = raceStatsRef.current.sumAlign / count;
+    const avgFs = raceStatsRef.current.sumFs / count;
+    const bonusPct = Math.max(0, Math.min(20, Math.round(avgFs * 20)));
+    const maxSpd = Math.round(raceStatsRef.current.maxSpeed);
+    const raceTimeSec = timeRef.current;
+
+    const bestKey = `orbdrive_best_${modeKey}`;
+    const prevBest = Number.parseFloat(window.localStorage.getItem(bestKey) ?? "");
+    const bestTimeSec =
+      Number.isFinite(prevBest) && prevBest > 0
+        ? Math.min(prevBest, raceTimeSec)
+        : raceTimeSec;
+    window.localStorage.setItem(bestKey, String(bestTimeSec));
+
+    setRaceResult({
+      raceTimeSec,
+      avgAlignment: avgAlign,
+      maxSpeed: maxSpd,
+      focusBonusPct: bonusPct,
+      trackMeters: TRACK_LENGTH,
+      difficulty: mode.label,
+      bestTimeSec,
+    });
+    setResultOpen(true);
+
+    try {
+      confetti({
+        particleCount: 140,
+        spread: 90,
+        startVelocity: 55,
+        scalar: 1.05,
+        origin: { x: 0.5, y: 0.35 },
+      });
+      confetti({
+        particleCount: 90,
+        spread: 130,
+        startVelocity: 45,
+        scalar: 0.95,
+        origin: { x: 0.25, y: 0.45 },
+      });
+      confetti({
+        particleCount: 90,
+        spread: 130,
+        startVelocity: 45,
+        scalar: 0.95,
+        origin: { x: 0.75, y: 0.45 },
+      });
+    } catch {
+      // ignore confetti errors (e.g. SSR / unavailable canvas)
+    }
+  };
+
+  const beginFlow = () => {
+    if (resultOpen) return;
+    setResetting(false);
+    setPhase("mode");
+  };
+
+  const selectMode = (key) => {
+    setModeKey(key);
+    setPhase("ready");
+  };
+
+  const startCountdown = () => {
+    setPhase("countdown");
+    setCountdown(3);
+  };
+
+  useEffect(() => {
+    if (phase !== "countdown") return;
+    if (countdown == null) return;
+
+    if (countdown <= 0) {
+      playCountdownBeep(0); // GO beep
+      setCountdown(null);
+      startGame();
+      return;
+    }
+
+    playCountdownBeep(countdown);
+    const t = window.setTimeout(() => setCountdown((c) => (c == null ? null : c - 1)), 900);
+    return () => window.clearTimeout(t);
+  }, [phase, countdown]);
+
+  useEffect(() => {
+    if (!running) return;
+
+    const loop = (timestamp) => {
+      if (!lastTimeRef.current) lastTimeRef.current = timestamp;
+      const dt = Math.min((timestamp - lastTimeRef.current) / 1000, 0.05);
+      lastTimeRef.current = timestamp;
+
+      timeRef.current += dt;
+      setTime(timeRef.current);
+
+      // Reaction variability (gaze jitter) approximation from pointer jitter.
+      const dxm = mouseRef.current.x - jitterRef.current.lastX;
+      const dym = mouseRef.current.y - jitterRef.current.lastY;
+      jitterRef.current.lastX = mouseRef.current.x;
+      jitterRef.current.lastY = mouseRef.current.y;
+      const jitterInstant = Math.min(1, Math.sqrt(dxm * dxm + dym * dym) / 12);
+      jitterRef.current.ema = jitterRef.current.ema + (jitterInstant - jitterRef.current.ema) * 0.22;
+
+      angleRef.current += dt;
+      // Sudden directional shifts (Advanced): move the orbit center.
+      if (mode.shiftEverySec > 0) {
+        const now = timestamp / 1000;
+        if (shiftRef.current.nextAt === 0) {
+          shiftRef.current.nextAt = now + mode.shiftEverySec;
+        }
+        if (now >= shiftRef.current.nextAt) {
+          shiftRef.current.nextAt = now + mode.shiftEverySec;
+          shiftRef.current.offX = -10 + Math.random() * 20;
+          shiftRef.current.offY = -8 + Math.random() * 16;
+        }
+      } else {
+        shiftRef.current.offX = 0;
+        shiftRef.current.offY = 0;
+      }
+
+      const orbX = 50 + (30 * Math.sin(angleRef.current)) + shiftRef.current.offX;
+      const orbY = 50 + (20 * Math.cos(angleRef.current * 1.5)) + shiftRef.current.offY;
+      setOrbPos({ x: orbX, y: orbY });
+
+      const dx = mouseRef.current.x - orbX;
+      const dy = mouseRef.current.y - orbY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const align = Math.max(0, Math.min(100, (1 - distance / 20) * 100));
+      setAlignment(align);
+
+      const focusedNow = align >= ALIGNMENT_THRESHOLD;
+      setIsFocused(focusedNow);
+
+      let newStability;
+      if (focusedNow) {
+        newStability = stabilityRef.current + dt;
+      } else {
+        newStability = Math.max(0, stabilityRef.current - dt);
+      }
+      stabilityRef.current = newStability;
+      setStability(newStability);
+
+      // Focus Strength (FS) = (Alignment% × StabilityWeight) / ReactionVariability
+      const stabilityWeight = Math.min(newStability / mode.holdSeconds, 1);
+      const reactionVariability = 1 + jitterRef.current.ema * 1.6;
+      const fsRaw = ((align / 100) * stabilityWeight) / reactionVariability;
+      const fs = Math.max(0, Math.min(1, fsRaw));
+      setFocusStrength(fs);
+
+      raceStatsRef.current.sumAlign += align;
+      raceStatsRef.current.sumFs += fs;
+      raceStatsRef.current.count += 1;
+
+      // MFCT threshold: below 45% continuously for 3s -> speed drops; 5s -> reset.
+      if (align < MFCT_THRESHOLD) {
+        lowMfctRef.current += dt;
+      } else {
+        lowMfctRef.current = 0;
+      }
+
+      const low3 = lowMfctRef.current >= 3;
+      const low5 = lowMfctRef.current >= 5;
+      if (low3 && lowMfctRef.current - dt < 3) playWarning(); // only on first crossing
+      setWarning(low3);
+
+      if (low5) {
+        resetRace();
+        return;
+      }
+
+      const mappedSpeed = Math.min(MAX_SPEED, BASE_SPEED + fs * 160);
+      const forcedSlow = low3 ? 40 : null;
+
+      // Focus-hold requirement: must maintain focus for mode.holdSeconds to fully drive.
+      let targetSpeed = 0;
+      if (focusedNow) {
+        if (stabilityWeight < 1) {
+          targetSpeed = BASE_SPEED * Math.max(0.15, stabilityWeight);
+        } else {
+          targetSpeed = mappedSpeed;
+        }
+      }
+
+      if (forcedSlow != null) {
+        targetSpeed = Math.min(targetSpeed || forcedSlow, forcedSlow);
+      }
+
+      speedRef.current += (targetSpeed - speedRef.current) * 0.08;
+      setCarSpeed(speedRef.current);
+
+      raceStatsRef.current.maxSpeed = Math.max(
+        raceStatsRef.current.maxSpeed,
+        speedRef.current
+      );
+
+      // Audio: update engine pitch + wind volume + gear shifts
+      const currentSpeedPct = Math.max(0, Math.min(1, speedRef.current / 220));
+      updateEngine(currentSpeedPct);
+      updateWind(currentSpeedPct);
+      checkGearShift(currentSpeedPct);
+
+      // Nitro boost sound when full focus achieved
+      if (stabilityWeight >= 1 && focusedNow) {
+        playNitroBoost();
+      }
+
+      // Advance race progress whenever the user is focused.
+      // Speed is already scaled by the hold requirement, so gating progress on `canDrive`
+      // makes the tunnel appear to move while the car never reaches the finish.
+      if (focusedNow && speedRef.current > 1) {
+        const nextProgress = Math.min(
+          1,
+          progressRef.current + (speedRef.current / 3.6) * dt / TRACK_LENGTH
+        );
+        progressRef.current = nextProgress;
+        setProgress(nextProgress);
+
+        // Check for finish line collision - use progress-based finish
+        // When progress reaches 95%+, the race is essentially complete
+        if (nextProgress >= 0.95) {
+          cancelAnimationFrame(animationRef.current);
+          progressRef.current = 1;
+          setProgress(1);
+          triggerWin();
+          return;
+        }
+
+        // Also check for DOM-based finish line collision as backup
+        const carEl = playerCarRef.current;
+        const finishEl = finishLineRef.current;
+        if (carEl && finishEl && nextProgress > 0.4) {
+          try {
+            const carRect = carEl.getBoundingClientRect();
+            const finishRect = finishEl.getBoundingClientRect();
+            
+            // Car crosses finish when its bottom edge reaches/passes the finish line bottom
+            const carBottom = carRect.bottom;
+            const finishBottom = finishRect.bottom;
+            
+            // Account for tolerance - car must be close/overlapping with finish
+            if (carBottom >= finishBottom - 20 && carBottom <= finishBottom + 40) {
+              if (nextProgress > 0.4) {
+                cancelAnimationFrame(animationRef.current);
+                progressRef.current = 1;
+                setProgress(1);
+                triggerWin();
+                return;
+              }
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+      }
+
+      animationRef.current = requestAnimationFrame(loop);
+    };
+
+    animationRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animationRef.current);
+  }, [running]);
+
+  return (
+    <div className="orbdrive-wrapper">
+      <button
+        className="orbdrive-close-btn"
+        onClick={exitToMenu}
+        title="Exit game"
+        type="button"
+      >
+        ✕
+      </button>
+      
+      <h3 className="orbdrive-title">🚗 OrbDrive – Focus to Win</h3>
+      <div className="orbdrive-sub">YOUR EYES CONTROL THE SPEED</div>
+
+      {resultOpen && raceResult && (
+        <div className="orbdrive-resultOverlay" role="dialog" aria-modal="true">
+          <div className="orbdrive-resultCard">
+            <div className="orbdrive-resultTop">RACE COMPLETE</div>
+            <div className="orbdrive-resultTime">{formatRaceTime(raceResult.raceTimeSec)}</div>
+
+            <div className="orbdrive-resultStats" role="list">
+              <div className="orbdrive-resultStat">
+                <div className="orbdrive-resultLabel">AVG ALIGNMENT</div>
+                <div className="orbdrive-resultValue">{raceResult.avgAlignment.toFixed(1)}%</div>
+              </div>
+              <div className="orbdrive-resultStat">
+                <div className="orbdrive-resultLabel">MAX SPEED</div>
+                <div className="orbdrive-resultValue">{raceResult.maxSpeed} km/h</div>
+              </div>
+              <div className="orbdrive-resultStat">
+                <div className="orbdrive-resultLabel">FOCUS BONUS</div>
+                <div className="orbdrive-resultValue">+{raceResult.focusBonusPct}%</div>
+              </div>
+              <div className="orbdrive-resultStat">
+                <div className="orbdrive-resultLabel">TRACK</div>
+                <div className="orbdrive-resultValue">{raceResult.trackMeters}m</div>
+              </div>
+              <div className="orbdrive-resultStat">
+                <div className="orbdrive-resultLabel">DIFFICULTY</div>
+                <div className="orbdrive-resultValue">{raceResult.difficulty}</div>
+              </div>
+              <div className="orbdrive-resultStat">
+                <div className="orbdrive-resultLabel">BEST</div>
+                <div className="orbdrive-resultValue">{formatRaceTime(raceResult.bestTimeSec)}</div>
+              </div>
+            </div>
+
+            <div className="orbdrive-resultActions">
+              <button
+                type="button"
+                className="orbdrive-resultBtn orbdrive-resultBtn--primary"
+                onClick={() => {
+                  setResultOpen(false);
+                  setRaceResult(null);
+                  resetForReplay();
+                  setPhase("ready");
+                }}
+              >
+                RACE AGAIN
+              </button>
+              <button
+                type="button"
+                className="orbdrive-resultBtn orbdrive-resultBtn--ghost"
+                onClick={() => {
+                  setResultOpen(false);
+                  setRaceResult(null);
+                  resetForReplay();
+                  setPhase("idle");
+                  exitToMenu();
+                }}
+              >
+                MENU
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!running && phase === "idle" && (
+        <button className="orbdrive-start-btn" onClick={beginFlow}>
+          ▶ Start Race
+        </button>
+      )}
+
+      {!running && resetting && (
+        <div className="orbdrive-resetMsg">Race reset — try again!</div>
+      )}
+
+      {phase === "mode" && (
+        <div className="orbdrive-modeOverlay" role="dialog" aria-modal="true">
+          <div className="orbdrive-modeModal">
+            <div className="orbdrive-modeTitle">Choose a Mode</div>
+            <div className="orbdrive-modeGrid" role="list">
+              {Object.values(MODES).map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  className={
+                    "orbdrive-modeCard" + (modeKey === m.key ? " is-selected" : "")
+                  }
+                  onClick={() => selectMode(m.key)}
+                >
+                  <div className="orbdrive-modeName">{m.label}</div>
+                  <div className="orbdrive-modeDesc">{m.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {phase === "ready" && (
+        <div className="orbdrive-readyOverlay" role="dialog" aria-modal="true">
+          <div className="orbdrive-readyModal">
+            <div className="orbdrive-readyTitle">Let’s begin the race!</div>
+            <div className="orbdrive-readySub">Are you ready?</div>
+            <button className="orbdrive-readyBtn" onClick={startCountdown}>
+              Yes, Start
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase === "countdown" && (
+        <div className="orbdrive-countOverlay" role="dialog" aria-modal="true">
+          <div className="orbdrive-countInner">
+            <div className="orbdrive-flags" aria-hidden="true">
+              <span className="orbdrive-flag left">🏁</span>
+              <span className="orbdrive-flag right">🏁</span>
+            </div>
+            <div className="orbdrive-countNum">{countdown}</div>
+          </div>
+        </div>
+      )}
+
+      {running && (
+        <>
+          {/* ── Racing HUD Top Bar ── */}
+          <div className="od-hud-bar">
+            <div className="od-hud-cell">
+              <span className="od-hud-lbl">LAP TIME</span>
+              <span className="od-hud-num">{formatRaceTime(time)}</span>
+            </div>
+            <div className="od-hud-cell od-hud-cell--speed">
+              <span className={"od-hud-big" + (carSpeed >= 160 ? " od-hot" : "")}>
+                {Math.round(carSpeed)}
+              </span>
+              <span className="od-hud-unit">KM/H</span>
+            </div>
+            <div className="od-hud-cell">
+              <span className="od-hud-lbl">PROGRESS</span>
+              <span className="od-hud-num">{Math.round(progress * 100)}%</span>
+            </div>
+          </div>
+
+          <div
+            ref={areaRef}
+            onMouseMove={handleMouseMove}
+            className="orbdrive-container"
+          >
+            {/* ── LEFT: Orb Tracking Panel ── */}
+            <div ref={orbPanelRef} className="orb-panel">
+              <div className="od-grid-overlay" aria-hidden="true" />
+              <div className="od-panel-label">TRACK THE ORB</div>
+
+              <div
+                className={
+                  "orbdrive-focusPoint" + (isFocused ? " is-active" : "")
+                }
+                style={{
+                  left: `${orbPos.x}%`,
+                  top: `${orbPos.y}%`,
+                }}
+              />
+
+              <div
+                className="orb"
+                style={{
+                  left: `${orbPos.x}%`,
+                  top: `${orbPos.y}%`,
+                  opacity: isFocused ? 1 : 0.9,
+                  width: `${orbSize}px`,
+                  height: `${orbSize}px`,
+                }}
+              />
+
+              {/* Outer focus ring */}
+              <div
+                className={"od-focus-ring" + (isFocused ? " od-focus-ring--active" : "")}
+                style={{
+                  left: `${orbPos.x}%`,
+                  top: `${orbPos.y}%`,
+                }}
+                aria-hidden="true"
+              />
+            </div>
+
+            {/* ── RIGHT: Track Panel ── */}
+            <div
+              className={"track-panel" + (carSpeed > 170 ? " od-warp" : "")}
+              style={{ "--spd": speedPct }}
+            >
+              {/* Sky layers */}
+              <div className="od-sky-layer" aria-hidden="true" />
+              <div className="od-city-layer" aria-hidden="true" />
+              <div className="track-mountains" aria-hidden="true" />
+
+              {/* Neon guardrails */}
+              <div className="od-rail od-rail--l" aria-hidden="true" />
+              <div className="od-rail od-rail--r" aria-hidden="true" />
+
+              <div className="track-road" aria-hidden="true">
+                {/* Edge lane glow */}
+                <div className="od-lane-edge od-lane-edge--l" aria-hidden="true" />
+                <div className="od-lane-edge od-lane-edge--r" aria-hidden="true" />
+
+                {[...Array(12)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="track-line"
+                    style={{
+                      bottom: `${
+                        (i * 10 +
+                          time *
+                            carSpeed *
+                            0.09 *
+                            (mode.tunnelBaseMul + time * mode.tunnelAccelPerSec)) %
+                        120
+                      }%`,
+                      "--p": i / 12,
+                      "--xoff": `${
+                        mode.depthWarp
+                          ? Math.sin(time * 1.15 + i * 0.85) *
+                            (4 + speedPct * 10) *
+                            (modeKey === "advanced" ? 1.3 : 1)
+                          : 0
+                      }px`,
+                    }}
+                  />
+                ))}
+
+                <div className="finish finish--fixed">
+                  <div className="finish-label">🏁 FINISH</div>
+                  <div className="finish-line" ref={finishLineRef} />
+                </div>
+
+                <div
+                  className="car car--player"
+                  ref={playerCarRef}
+                  style={{
+                    bottom: `${carBottomPct}%`,
+                    "--speed": carSpeed,
+                    "--carScale": carScale,
+                  }}
+                  aria-label="Car"
+                >
+                  <div className="od-car-headlights" aria-hidden="true" />
+                  <div className="orbdrive-car-body">
+                    <div className="orbdrive-car-windshield"></div>
+                    <div className="orbdrive-car-middle"></div>
+                    <div className="orbdrive-car-trunk"></div>
+                  </div>
+                  {carSpeed > 80 && (
+                    <div className="od-exhaust-flame" aria-hidden="true" />
+                  )}
+                  <div className="od-car-shadow" aria-hidden="true" />
+                </div>
+
+                <div
+                  className="progress-bar"
+                  style={{
+                    width: `${progress * 100}%`,
+                  }}
+                />
+              </div>
+
+              {/* Speedometer */}
+              <div className="track-hud">
+                <div className="speedo-box">
+                  <div className="speedo">
+                    <div className="speedo-ring" style={{ "--spd": speedPct }} />
+                    <div className="speedo-center">
+                      <div className="speedo-value">{Math.round(carSpeed)}</div>
+                      <div className="speedo-unit">KM/H</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Dashboard Bottom Bar ── */}
+          <div className="od-dashboard">
+            <div className="od-dash-cell">
+              <span className="od-dash-icon">🎯</span>
+              <div className="od-dash-info">
+                <span className="od-dash-lbl">ALIGNMENT</span>
+                <span className="od-dash-val">{Math.round(alignment)}%</span>
+              </div>
+            </div>
+            <div className="od-dash-cell">
+              <span className="od-dash-icon">🔥</span>
+              <div className="od-dash-info">
+                <span className="od-dash-lbl">FOCUS</span>
+                <span className="od-dash-val">{(focusStrength * 100).toFixed(0)}%</span>
+              </div>
+            </div>
+            <div className="od-dash-cell od-dash-cell--gauge">
+              <span className="od-dash-gauge-lbl">FOCUS LOCK</span>
+              <div className="od-gauge-track">
+                <div
+                  className={"od-gauge-fill" + (canDrive ? " od-gauge-fill--full" : "")}
+                  style={{ width: `${holdPct * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {!canDrive && (
+            <div className="orbdrive-holdHint">
+              Hold focus for {mode.holdSeconds.toFixed(1)}s to unlock full speed
+            </div>
+          )}
+
+          {warning && (
+            <div className="orbdrive-warning">
+              ⚠ CONVERGENCE LOST — REGAIN FOCUS!
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

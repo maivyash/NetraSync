@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Progress } from "antd";
+import OrbDrive from "../games/OrbDrive";
+import FusionHoops from "../games/FusionHoops";
 
 const games = [
   {
@@ -15,10 +17,10 @@ const games = [
     desc: "Rapid near-to-far focus transitions that build accommodative flexibility.",
   },
   {
-    id: "eye-tracker", icon: "👁", title: "Eye Tracker",
-    type: "Tracking Exercise", progress: 91, xp: 2100,
-    color: "#00ff88", difficulty: "Easy",
-    desc: "Smooth pursuit training using dynamic moving targets across the visual field.",
+    id: "fusion-hoops", icon: "🏀", title: "Fusion Hoops",
+    type: "Eye-Convergence Sports", progress: 45, xp: 1520,
+    color: "#a855f7", difficulty: "Medium",
+    desc: "Eye convergence basketball training using focus stability to make precision shots.",
   },
   {
     id: "depth-arena", icon: "🎲", title: "Depth Arena",
@@ -53,6 +55,20 @@ const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export default function Dashboard() {
   const [activeGame, setActiveGame] = useState(null);
   const [hoveredGame, setHoveredGame] = useState(null);
+  const [playingGameId, setPlayingGameId] = useState(null);
+
+  const handlePlayGame = (gameId) => {
+    if (gameId === "orb-drive" || gameId === "fusion-hoops") {
+      setPlayingGameId(gameId);
+    } else {
+      // For other games, show a message or implement later
+      alert(`${gameId} game coming soon!`);
+    }
+  };
+
+  const handleCloseGame = () => {
+    setPlayingGameId(null);
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-dark)", position: "relative" }}>
@@ -74,8 +90,10 @@ export default function Dashboard() {
             display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
           }}>👁</div>
           <span style={{ fontFamily: "var(--font-heading)", fontWeight: 900, fontSize: "1rem", color: "#fff" }}>
-            NETRA<span style={{ background: "var(--grad-accent)", WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent" }}>SYNC</span>
+            NETRA<span style={{
+              background: "var(--grad-accent)", WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent"
+            }}>SYNC</span>
           </span>
           <div style={{
             marginLeft: 12, padding: "3px 10px", borderRadius: 20,
@@ -86,8 +104,10 @@ export default function Dashboard() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontFamily: "var(--font-heading)", color: "#00f5ff", fontSize: "0.8rem",
-              letterSpacing: 1 }}>LEVEL 7</div>
+            <div style={{
+              fontFamily: "var(--font-heading)", color: "#00f5ff", fontSize: "0.8rem",
+              letterSpacing: 1
+            }}>LEVEL 7</div>
             <div style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>4,790 / 6,000 XP</div>
           </div>
           <div style={{
@@ -103,13 +123,19 @@ export default function Dashboard() {
       <div style={{ position: "relative", zIndex: 1, padding: "32px 40px", maxWidth: 1300, margin: "0 auto" }}>
 
         {/* ── HEADER ROW ── */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-          marginBottom: 32, flexWrap: "wrap", gap: 16 }}>
+        <div style={{
+          display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+          marginBottom: 32, flexWrap: "wrap", gap: 16
+        }}>
           <div>
-            <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(1.4rem,3vw,2rem)",
-              marginBottom: 6 }}>
-              Welcome back, <span style={{ background: "var(--grad-accent)",
-                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Commander</span>
+            <h1 style={{
+              fontFamily: "var(--font-heading)", fontSize: "clamp(1.4rem,3vw,2rem)",
+              marginBottom: 6
+            }}>
+              Welcome back, <span style={{
+                background: "var(--grad-accent)",
+                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
+              }}>Commander</span>
             </h1>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
               Day 14 of your therapy protocol · 7-day streak 🔥
@@ -121,8 +147,10 @@ export default function Dashboard() {
             border: "1px solid rgba(0,245,255,0.2)",
             textAlign: "center",
           }}>
-            <div style={{ fontFamily: "var(--font-heading)", fontSize: "2rem", color: "#00f5ff",
-              fontWeight: 900, filter: "drop-shadow(0 0 8px rgba(0,245,255,0.5))" }}>65%</div>
+            <div style={{
+              fontFamily: "var(--font-heading)", fontSize: "2rem", color: "#00f5ff",
+              fontWeight: 900, filter: "drop-shadow(0 0 8px rgba(0,245,255,0.5))"
+            }}>65%</div>
             <div style={{ color: "var(--text-secondary)", fontSize: "0.75rem", marginTop: 2 }}>
               Overall Progress
             </div>
@@ -130,21 +158,29 @@ export default function Dashboard() {
         </div>
 
         {/* ── METRICS GRID ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
-          gap: 16, marginBottom: 32 }}>
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))",
+          gap: 16, marginBottom: 32
+        }}>
           {metrics.map((m) => (
             <div key={m.label} className="glass-card" style={{ padding: "20px 24px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-                marginBottom: 14 }}>
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                marginBottom: 14
+              }}>
                 <span style={{ fontSize: 24 }}>{m.icon}</span>
-                <span style={{ fontFamily: "var(--font-heading)", fontSize: "1.4rem",
+                <span style={{
+                  fontFamily: "var(--font-heading)", fontSize: "1.4rem",
                   color: m.color, fontWeight: 900,
-                  filter: `drop-shadow(0 0 6px ${m.color}80)` }}>
+                  filter: `drop-shadow(0 0 6px ${m.color}80)`
+                }}>
                   {m.value}{m.unit}
                 </span>
               </div>
-              <div style={{ marginBottom: 8, color: "var(--text-secondary)", fontSize: "0.78rem",
-                textTransform: "uppercase", letterSpacing: 1, fontFamily: "var(--font-heading)" }}>
+              <div style={{
+                marginBottom: 8, color: "var(--text-secondary)", fontSize: "0.78rem",
+                textTransform: "uppercase", letterSpacing: 1, fontFamily: "var(--font-heading)"
+              }}>
                 {m.label}
               </div>
               <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)" }}>
@@ -164,14 +200,20 @@ export default function Dashboard() {
 
           {/* Games grid */}
           <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-              marginBottom: 20 }}>
-              <h2 style={{ fontFamily: "var(--font-heading)", fontSize: "1rem", letterSpacing: 1,
-                color: "var(--text-primary)" }}>🎮 Therapy Games</h2>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginBottom: 20
+            }}>
+              <h2 style={{
+                fontFamily: "var(--font-heading)", fontSize: "1rem", letterSpacing: 1,
+                color: "var(--text-primary)"
+              }}>🎮 Therapy Games</h2>
               <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>6 available</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))",
-              gap: 16 }}>
+            <div style={{
+              display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))",
+              gap: 16
+            }}>
               {games.map((g) => (
                 <div key={g.id}
                   className="glass-card"
@@ -193,27 +235,33 @@ export default function Dashboard() {
                       transition: "box-shadow 0.3s",
                     }}>{g.icon}</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: "var(--font-heading)", color: g.color,
-                        fontSize: "0.85rem", letterSpacing: 0.5 }}>{g.title}</div>
+                      <div style={{
+                        fontFamily: "var(--font-heading)", color: g.color,
+                        fontSize: "0.85rem", letterSpacing: 0.5
+                      }}>{g.title}</div>
                       <div style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>{g.type}</div>
                     </div>
                     <div style={{
                       padding: "3px 8px", borderRadius: 4,
                       background: g.difficulty === "Easy"
                         ? "rgba(0,255,136,0.1)" : g.difficulty === "Medium"
-                        ? "rgba(245,158,11,0.1)" : "rgba(239,68,68,0.1)",
+                          ? "rgba(245,158,11,0.1)" : "rgba(239,68,68,0.1)",
                       color: g.difficulty === "Easy" ? "#00ff88"
                         : g.difficulty === "Medium" ? "#f59e0b" : "#ef4444",
                       fontSize: "0.6rem", fontFamily: "var(--font-heading)", letterSpacing: 1,
                     }}>{g.difficulty}</div>
                   </div>
 
-                  <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.6,
-                    marginBottom: 14 }}>{g.desc}</p>
+                  <p style={{
+                    fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.6,
+                    marginBottom: 14
+                  }}>{g.desc}</p>
 
                   <div style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between",
-                      marginBottom: 6, fontSize: "0.7rem" }}>
+                    <div style={{
+                      display: "flex", justifyContent: "space-between",
+                      marginBottom: 6, fontSize: "0.7rem"
+                    }}>
                       <span style={{ color: "var(--text-muted)" }}>Progress</span>
                       <span style={{ color: g.color, fontFamily: "var(--font-heading)" }}>{g.progress}%</span>
                     </div>
@@ -237,7 +285,9 @@ export default function Dashboard() {
                       color: activeGame === g.id ? "#000" : g.color,
                       fontFamily: "var(--font-heading)", fontSize: "0.7rem", letterSpacing: 1,
                       fontWeight: 700, transition: "all 0.3s",
-                    }}>
+                    }}
+                    onClick={() => handlePlayGame(g.id)}
+                    >
                       {activeGame === g.id ? "⏸ PAUSE" : "▶ PLAY"}
                     </button>
                   </div>
@@ -251,14 +301,18 @@ export default function Dashboard() {
 
             {/* Weekly chart */}
             <div className="glass-card" style={{ padding: 24 }}>
-              <h3 style={{ fontFamily: "var(--font-heading)", fontSize: "0.8rem", letterSpacing: 1,
-                color: "var(--text-primary)", marginBottom: 20, textTransform: "uppercase" }}>
+              <h3 style={{
+                fontFamily: "var(--font-heading)", fontSize: "0.8rem", letterSpacing: 1,
+                color: "var(--text-primary)", marginBottom: 20, textTransform: "uppercase"
+              }}>
                 📈 Weekly Score
               </h3>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
                 {weekData.map((val, i) => (
-                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column",
-                    alignItems: "center", gap: 4 }}>
+                  <div key={i} style={{
+                    flex: 1, display: "flex", flexDirection: "column",
+                    alignItems: "center", gap: 4
+                  }}>
                     <div style={{
                       width: "100%", height: `${val}%`, borderRadius: "4px 4px 0 0",
                       background: i === 6
@@ -277,20 +331,26 @@ export default function Dashboard() {
             {/* Active Streak */}
             <div className="glass-card animate-pulse" style={{ padding: 24, textAlign: "center" }}>
               <div style={{ fontSize: 36, marginBottom: 8 }}>🔥</div>
-              <div style={{ fontFamily: "var(--font-heading)", fontSize: "2.5rem", fontWeight: 900,
-                color: "#ff6b35", filter: "drop-shadow(0 0 12px rgba(255,107,53,0.6))" }}>7</div>
+              <div style={{
+                fontFamily: "var(--font-heading)", fontSize: "2.5rem", fontWeight: 900,
+                color: "#ff6b35", filter: "drop-shadow(0 0 12px rgba(255,107,53,0.6))"
+              }}>7</div>
               <div style={{ color: "var(--text-secondary)", fontSize: "0.8rem", marginTop: 4 }}>Day Streak</div>
-              <div style={{ marginTop: 16, padding: "8px 16px", borderRadius: 20,
+              <div style={{
+                marginTop: 16, padding: "8px 16px", borderRadius: 20,
                 background: "rgba(255,107,53,0.1)", border: "1px solid rgba(255,107,53,0.3)",
-                color: "#ff6b35", fontSize: "0.7rem", fontFamily: "var(--font-heading)", letterSpacing: 1 }}>
+                color: "#ff6b35", fontSize: "0.7rem", fontFamily: "var(--font-heading)", letterSpacing: 1
+              }}>
                 KEEP IT GOING!
               </div>
             </div>
 
             {/* Next session */}
             <div className="glass-card" style={{ padding: 24 }}>
-              <h3 style={{ fontFamily: "var(--font-heading)", fontSize: "0.75rem", letterSpacing: 1,
-                color: "var(--text-muted)", marginBottom: 16, textTransform: "uppercase" }}>
+              <h3 style={{
+                fontFamily: "var(--font-heading)", fontSize: "0.75rem", letterSpacing: 1,
+                color: "var(--text-muted)", marginBottom: 16, textTransform: "uppercase"
+              }}>
                 Recommended Next
               </h3>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -316,10 +376,14 @@ export default function Dashboard() {
 
         {/* ── OVERALL PROGRESS ── */}
         <div className="glass-card" style={{ padding: 28 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-            marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-            <h3 style={{ fontFamily: "var(--font-heading)", color: "#00f5ff", fontSize: "0.9rem",
-              letterSpacing: 1 }}>🧬 CLINICAL PROGRESS OVERVIEW</h3>
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            marginBottom: 20, flexWrap: "wrap", gap: 12
+          }}>
+            <h3 style={{
+              fontFamily: "var(--font-heading)", color: "#00f5ff", fontSize: "0.9rem",
+              letterSpacing: 1
+            }}>🧬 CLINICAL PROGRESS OVERVIEW</h3>
             <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>Last updated: Today</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 20 }}>
@@ -330,11 +394,15 @@ export default function Dashboard() {
               { label: "Doctor Rating", pct: 88, color: "#f59e0b" },
             ].map((item) => (
               <div key={item.label}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8,
-                  fontSize: "0.78rem" }}>
+                <div style={{
+                  display: "flex", justifyContent: "space-between", marginBottom: 8,
+                  fontSize: "0.78rem"
+                }}>
                   <span style={{ color: "var(--text-secondary)" }}>{item.label}</span>
-                  <span style={{ color: item.color, fontFamily: "var(--font-heading)",
-                    fontWeight: 700 }}>{item.pct}%</span>
+                  <span style={{
+                    color: item.color, fontFamily: "var(--font-heading)",
+                    fontWeight: 700
+                  }}>{item.pct}%</span>
                 </div>
                 <Progress
                   percent={item.pct} showInfo={false} size="small"
@@ -345,6 +413,50 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+
+        {/* Game Modal */}
+        {playingGameId === "orb-drive" && (
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(5, 8, 16, 0.95)",
+            backdropFilter: "blur(10px)",
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <div style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+            }}>
+              <OrbDrive onClose={handleCloseGame} />
+            </div>
+          </div>
+        )}
+
+        {/* Fusion Hoops Modal */}
+        {playingGameId === "fusion-hoops" && (
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(5, 8, 16, 0.95)",
+            backdropFilter: "blur(10px)",
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <div style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+            }}>
+              <FusionHoops onClose={handleCloseGame} />
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

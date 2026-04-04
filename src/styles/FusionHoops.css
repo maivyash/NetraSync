@@ -1,0 +1,1325 @@
+/* ================================================
+   FUSION HOOPS — Official Basketball Court Game
+   ================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ============================================
+   START SCREEN
+   ============================================ */
+.fh-start-screen {
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  background: linear-gradient(180deg, #050810 0%, #0f1419 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.fh-start-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.3;
+}
+.fh-start-glow.one { width: 400px; height: 400px; background: #a855f7; top: -120px; left: -80px; }
+.fh-start-glow.two { width: 350px; height: 350px; background: #00f5ff; bottom: -100px; right: -80px; }
+
+.fh-start-content {
+  text-align: center;
+  z-index: 2;
+  color: white;
+  width: min(92vw, 560px);
+}
+
+.fh-start-icon {
+  font-size: 80px;
+  margin-bottom: 16px;
+  animation: fhBounceIcon 1.5s ease infinite;
+}
+
+@keyframes fhBounceIcon {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-18px); }
+}
+
+.fh-start-title {
+  font-size: clamp(36px, 6vw, 56px);
+  font-weight: 900;
+  background: linear-gradient(90deg, #a855f7, #00f5ff, #a855f7);
+  background-size: 200% 200%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: fhShimmer 4s ease infinite;
+  margin: 0 0 12px;
+}
+
+@keyframes fhShimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.fh-start-sub {
+  font-size: 16px;
+  color: rgba(255,255,255,0.55);
+  margin-bottom: 36px;
+  letter-spacing: 1px;
+}
+
+.fh-start-btn {
+  padding: 16px 48px;
+  border: none;
+  border-radius: 50px;
+  font-size: 18px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
+  color: white;
+  cursor: pointer;
+  letter-spacing: 2px;
+  box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+  width: min(100%, 360px);
+}
+.fh-start-btn:hover { transform: scale(1.06); box-shadow: 0 12px 40px rgba(168,85,247,0.6); }
+
+.fh-back-btn {
+  display: block;
+  margin: 16px auto 0;
+  padding: 10px 28px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 30px;
+  background: transparent;
+  color: rgba(255,255,255,0.6);
+  font-size: 14px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.fh-back-btn:hover { background: rgba(255,255,255,0.08); color: white; }
+
+/* ============================================
+   END SCREEN
+   ============================================ */
+.fh-end-screen {
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  background: linear-gradient(180deg, #050810, #0a0e1a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  padding: 28px 16px;
+  overflow: auto;
+}
+
+.fh-end-card {
+  text-align: center;
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 28px;
+  padding: clamp(22px, 4vw, 48px) clamp(18px, 5vw, 56px);
+  width: min(92vw, 540px);
+}
+
+.fh-end-icon { font-size: 60px; margin-bottom: 8px; }
+
+.fh-end-title {
+  font-size: 36px;
+  font-weight: 900;
+  margin: 0 0 28px;
+  background: linear-gradient(90deg, #a855f7, #00f5ff);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 2px;
+}
+
+.fh-end-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.fh-end-stat {
+  background: rgba(255,255,255,0.05);
+  padding: 14px 12px;
+  border-radius: 14px;
+}
+
+.fh-end-label { display: block; font-size: 11px; color: rgba(255,255,255,0.45); letter-spacing: 1px; }
+.fh-end-val   { display: block; font-size: 24px; font-weight: 800; margin-top: 4px; }
+
+.fh-end-btns { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+
+/* ============================================
+   END POPUP (BUZZER)
+   ============================================ */
+.fh-end-pop {
+  text-align: center;
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 24px;
+  padding: clamp(22px, 4vw, 40px);
+  width: min(92vw, 460px);
+  animation: fhPopIn 220ms ease-out;
+}
+
+@keyframes fhPopIn {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.fh-end-pop-icon {
+  font-size: 64px;
+  margin-bottom: 10px;
+  animation: fhBounceIcon 1.1s ease infinite;
+}
+
+.fh-end-pop-title {
+  font-size: clamp(22px, 4vw, 30px);
+  font-weight: 900;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, #00f5ff, #a855f7);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.fh-end-pop-sub {
+  margin-top: 10px;
+  color: rgba(255,255,255,0.65);
+  letter-spacing: 0.6px;
+}
+
+.fh-end-pop-skip {
+  margin-top: 18px;
+  padding: 10px 18px;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.fh-end-pop-skip:hover { background: rgba(255,255,255,0.12); }
+
+@media (max-width: 420px) {
+  .fh-end-stats { gap: 12px; }
+  .fh-end-title { margin-bottom: 18px; }
+  .fh-end-val { font-size: 22px; }
+}
+
+/* ============================================
+   MAIN GAME WRAPPER
+   ============================================ */
+.fh-wrapper {
+  height: 100%;
+  width: 100%;
+  background: #0a0e1a;
+  position: relative;
+  cursor: crosshair;
+  color: white;
+  overflow: hidden;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  user-select: none;
+}
+
+/* ============================================
+   TOP HUD — Scoreboard Style
+   ============================================ */
+.fh-hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  background: rgba(5, 8, 16, 0.95);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  z-index: 20;
+  border-bottom: 2px solid rgba(168, 85, 247, 0.3);
+}
+
+.fh-hud-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fh-hud-logo { font-size: 22px; }
+
+.fh-hud-name {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #a855f7;
+}
+
+.fh-hud-court {
+  padding: 4px 14px;
+  border-radius: 20px;
+  background: #00ff88;
+  color: #050810;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.fh-hud-court:hover { background: #00dd77; }
+
+.fh-hud-center {
+  display: flex;
+  gap: 40px;
+}
+
+.fh-hud-stat { text-align: center; }
+.fh-hud-stat-label { font-size: 10px; color: rgba(255,255,255,0.4); letter-spacing: 1.5px; }
+.fh-hud-stat-val { font-size: 20px; font-weight: 800; }
+
+.fh-hud-right { display: flex; align-items: center; }
+
+.fh-menu-btn {
+  padding: 6px 18px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.fh-menu-btn:hover { background: rgba(255,255,255,0.12); }
+
+/* ============================================
+   FUSION TOP BAR
+   ============================================ */
+.fh-fusion-topbar {
+  position: absolute;
+  top: 52px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  z-index: 20;
+}
+
+.fh-fusion-topfill {
+  height: 100%;
+  background: linear-gradient(90deg, #00f5ff, #00ff88);
+  border-radius: 0 3px 3px 0;
+  transition: width 0.1s;
+  box-shadow: 0 0 12px rgba(0,245,255,0.5);
+}
+
+/* ============================================
+   RIM LABEL
+   ============================================ */
+.fh-rim-label {
+  position: absolute;
+  top: 68px;
+  right: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 2px;
+  z-index: 10;
+}
+
+/* ============================================
+   COURT AREA
+   ============================================ */
+.fh-court {
+  position: absolute;
+  top: 58px;
+  left: 40px;
+  right: 40px;
+  bottom: 80px;
+  border-radius: 4px;
+  overflow: hidden;
+  z-index: 5;
+  border: 3px solid rgba(40, 50, 80, 0.6);
+}
+
+/* ---- Arena Lights ---- */
+.fh-arena-light {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  z-index: 1;
+  pointer-events: none;
+}
+.fh-arena-light.al1 { background: #a855f7; top: -60px; left: 20%; }
+.fh-arena-light.al2 { background: #00f5ff; top: -60px; right: 20%; }
+
+/* ============================================
+   STADIUM — Indoor Arena Seating
+   ============================================ */
+.fh-stadium {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48%;
+  background: linear-gradient(180deg, #141c32 0%, #1a2540 30%, #243050 55%, #3a4568 100%);
+  overflow: hidden;
+}
+
+/* Stadium seating tiers */
+.fh-stadium-tier {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 0 0 50% 50%;
+}
+
+.fh-stadium-tier.tier-upper {
+  top: 0;
+  height: 45%;
+  background: linear-gradient(180deg, #1a2240 0%, #252f4a 100%);
+  border-bottom: 2px solid rgba(255,255,255,0.06);
+}
+
+.fh-stadium-tier.tier-lower {
+  top: 45%;
+  height: 55%;
+  background: linear-gradient(180deg, #252f4a 0%, #3a4568 100%);
+}
+
+.fh-crowd {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.fh-crowd-dot {
+  position: absolute;
+  border-radius: 50%;
+  animation: fhCrowdBounce 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes fhCrowdBounce {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-4px); }
+}
+
+/* Scoreboard hanging */
+.fh-scoreboard {
+  position: absolute;
+  top: 6%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(168,85,247,0.4);
+  border-radius: 6px;
+  padding: 4px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  z-index: 5;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.fh-sb-text { color: #00f5ff; }
+.fh-sb-divider { color: rgba(255,255,255,0.2); }
+
+/* ============================================
+   BACKBOARD + RIM + NET
+   ============================================ */
+.fh-backboard-group {
+  position: absolute;
+  z-index: 8;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: left 0.15s ease;
+}
+
+.fh-backboard {
+  width: 120px;
+  height: 75px;
+  background: linear-gradient(180deg, #f0f0f0 0%, #d9d9d9 50%, #c4c4c4 100%);
+  border: 3px solid #888;
+  border-radius: 3px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+.fh-backboard-inner {
+  width: 76px;
+  height: 52px;
+  border: 2px solid #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fh-backboard-square {
+  width: 36px;
+  height: 30px;
+  border: 3px solid #ef4444;
+  background: rgba(239,68,68,0.06);
+}
+
+.fh-fusion-text {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 800;
+  color: #00f5ff;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  text-shadow: 0 0 12px rgba(0,245,255,0.6);
+}
+
+.fh-pole {
+  width: 8px;
+  height: 30px;
+  background: linear-gradient(180deg, #888, #666);
+  margin-top: -2px;
+  border-radius: 0 0 2px 2px;
+}
+
+.fh-rim {
+  position: relative;
+  width: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: -4px;
+}
+
+.fh-rim-ring {
+  width: 90px;
+  height: 28px;
+  border: 6px solid #a855f7;
+  border-radius: 50%;
+  box-shadow: 0 0 20px rgba(168,85,247,0.6), 0 0 40px rgba(168,85,247,0.25);
+  animation: fhRimGlow 2s ease-in-out infinite alternate;
+  position: relative;
+  z-index: 2;
+}
+
+@keyframes fhRimGlow {
+  0% { box-shadow: 0 0 20px rgba(168,85,247,0.6), 0 0 40px rgba(168,85,247,0.25); }
+  100% { box-shadow: 0 0 30px rgba(168,85,247,0.8), 0 0 60px rgba(168,85,247,0.4); }
+}
+
+/* ---- SVG Net Container ---- */
+.fh-net-container {
+  width: 60px;
+  height: 48px;
+  margin-top: -10px;
+  position: relative;
+  z-index: 1;
+}
+
+.fh-net-svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+/* ============================================
+   COURT FLOOR — Official Hardwood
+   ============================================ */
+.fh-floor {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 52%;
+  overflow: hidden;
+}
+
+/* Hardwood planks texture */
+.fh-hardwood {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      #c4874a 0px, #c4874a 1px,
+      transparent 1px, transparent 60px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px,
+      transparent 1px, transparent 120px
+    ),
+    linear-gradient(180deg, #b8793e 0%, #a86e35 40%, #9a6230 100%);
+  z-index: 0;
+}
+
+/* Floor reflection / polish */
+.fh-hardwood::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 30% at 50% 20%, rgba(255,255,255,0.12) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.04), transparent 50%);
+  z-index: 1;
+}
+
+.fh-floor-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+/* Sidelines */
+.fh-sideline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: white;
+  opacity: 0.85;
+}
+.fh-sideline--left { left: 3%; }
+.fh-sideline--right { right: 3%; }
+
+/* Baselines */
+.fh-baseline {
+  position: absolute;
+  top: 0;
+  left: 3%;
+  right: 3%;
+  height: 3px;
+  background: white;
+  opacity: 0.85;
+}
+.fh-baseline--bottom {
+  top: auto;
+  bottom: 0;
+}
+
+/* Three-point arc */
+.fh-three-point {
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 78%;
+  height: 95%;
+  border: 3px solid white;
+  border-radius: 0 0 50% 50%;
+  border-top: none;
+  opacity: 0.7;
+}
+
+/* Free throw circle */
+.fh-free-throw-circle {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22%;
+  height: 30%;
+  border: 2px solid white;
+  border-radius: 50%;
+  opacity: 0.5;
+}
+
+/* Key / paint area */
+.fh-key {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28%;
+  height: 52%;
+  border: 3px solid white;
+  border-top: none;
+  opacity: 0.7;
+}
+
+/* Key block marks */
+.fh-key-block {
+  position: absolute;
+  width: 8px;
+  height: 3px;
+  background: white;
+  opacity: 0.6;
+}
+.fh-key-block.kb1 { top: 25%; left: calc(50% - 14% - 4px); }
+.fh-key-block.kb2 { top: 25%; right: calc(50% - 14% - 4px); }
+.fh-key-block.kb3 { top: 35%; left: calc(50% - 14% - 4px); }
+.fh-key-block.kb4 { top: 35%; right: calc(50% - 14% - 4px); }
+
+/* Center circle */
+.fh-center-circle {
+  position: absolute;
+  bottom: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18%;
+  height: 30%;
+  border: 2px solid white;
+  border-radius: 50%;
+  opacity: 0.4;
+}
+
+/* Restricted arc under basket */
+.fh-restricted-arc {
+  position: absolute;
+  top: -4%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14%;
+  height: 16%;
+  border: 2px dashed rgba(255,255,255,0.3);
+  border-radius: 0 0 50% 50%;
+  border-top: none;
+}
+
+/* ============================================
+   PLAYERS — Team Blue (home) + Team Red (away)
+   ============================================ */
+.fh-player {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 6;
+  transition: transform 0.2s ease;
+}
+
+/* Home team positions */
+.fh-player.p1 { bottom: 32%; left: 18%; }
+.fh-player.p2 { bottom: 12%; left: 36%; }
+.fh-player.p3 { bottom: 12%; right: 28%; }
+
+/* Opponent positions — now set dynamically via inline styles */
+/* (legacy op1/op2 removed; defenders use fh-defender-moving) */
+
+/* Moving defender — smooth position interpolation */
+.fh-defender-moving {
+  transition: left 0.12s linear, bottom 0.12s linear;
+  will-change: left, bottom;
+}
+
+/* Subtle idle sway on defenders to look alive */
+.fh-defender-moving .fh-player-body {
+  animation: fhDefSway 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes fhDefSway {
+  0%   { transform: rotate(-2deg); }
+  100% { transform: rotate(2deg); }
+}
+
+/* Defender arms shuffle animation */
+.fh-defender-moving .fh-player-arm-left {
+  animation: fhDefArmL 0.8s ease-in-out infinite alternate;
+}
+.fh-defender-moving .fh-player-arm-right {
+  animation: fhDefArmR 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes fhDefArmL {
+  0%   { transform: rotate(20deg); }
+  100% { transform: rotate(5deg); }
+}
+@keyframes fhDefArmR {
+  0%   { transform: rotate(-20deg); }
+  100% { transform: rotate(-5deg); }
+}
+
+/* Defender legs shuffle — gives a running feel */
+.fh-defender-moving .fh-player-legs::before {
+  animation: fhDefLegL 0.45s ease-in-out infinite alternate;
+}
+.fh-defender-moving .fh-player-legs::after {
+  animation: fhDefLegR 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes fhDefLegL {
+  0%   { transform: rotate(8deg) translateY(0); }
+  100% { transform: rotate(-6deg) translateY(-2px); }
+}
+@keyframes fhDefLegR {
+  0%   { transform: rotate(-8deg) translateY(-2px); }
+  100% { transform: rotate(6deg) translateY(0); }
+}
+
+/* Shooting animation */
+.fh-player--shooting {
+  animation: fhShootMotion 0.5s ease-out;
+}
+
+@keyframes fhShootMotion {
+  0%   { transform: translateY(0) scale(1); }
+  30%  { transform: translateY(-12px) scale(1.05); }
+  60%  { transform: translateY(-6px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+/* Player head */
+.fh-player-body {
+  width: 30px;
+  height: 40px;
+  background: linear-gradient(180deg, #00f5ff, #0099dd);
+  border-radius: 10px 10px 6px 6px;
+  position: relative;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+}
+
+.fh-player-body::before {
+  content: '';
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(circle at 40% 35%, #fcd9a8, #e0b888);
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* Cap */
+.fh-player-body::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 11px;
+  background: linear-gradient(180deg, #0088cc, #00f5ff);
+  border-radius: 50% 50% 0 0;
+}
+
+/* Arms */
+.fh-player-arm-left,
+.fh-player-arm-right {
+  position: absolute;
+  width: 8px;
+  height: 22px;
+  background: #00f5ff;
+  border-radius: 4px;
+  top: 2px;
+  z-index: -1;
+}
+.fh-player-arm-left { left: -6px; transform: rotate(15deg); }
+.fh-player-arm-right { right: -6px; transform: rotate(-15deg); }
+
+/* Shorts */
+.fh-player-shorts {
+  width: 32px;
+  height: 14px;
+  background: linear-gradient(180deg, #0088cc, #0077aa);
+  border-radius: 0 0 6px 6px;
+  margin-top: -2px;
+}
+
+/* Legs */
+.fh-player-legs {
+  display: flex;
+  gap: 6px;
+  margin-top: 1px;
+}
+.fh-player-legs::before,
+.fh-player-legs::after {
+  content: '';
+  width: 9px;
+  height: 18px;
+  background: #fcd9a8;
+  border-radius: 3px;
+}
+
+/* Jersey number */
+.fh-player-num {
+  position: absolute;
+  top: 10px;
+  font-size: 10px;
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  z-index: 2;
+}
+
+/* Opponent team — red jerseys */
+.fh-opponent .fh-player-body {
+  background: linear-gradient(180deg, #dc2626, #b91c1c);
+}
+.fh-opponent .fh-player-body::after {
+  background: linear-gradient(180deg, #991b1b, #dc2626);
+}
+.fh-opponent .fh-player-arm-left,
+.fh-opponent .fh-player-arm-right {
+  background: #dc2626;
+}
+.fh-opponent .fh-player-shorts {
+  background: linear-gradient(180deg, #b91c1c, #991b1b);
+}
+
+/* Ball held by player */
+.fh-ball-held {
+  position: absolute;
+  top: -8px;
+  right: -16px;
+  width: 18px;
+  height: 18px;
+  background: radial-gradient(circle at 35% 35%, #f97316, #c2410c);
+  border-radius: 50%;
+  border: 1.5px solid #9a3412;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+  z-index: 3;
+}
+
+/* Basketball seam lines */
+.fh-ball-held::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: rgba(0,0,0,0.3);
+  transform: translateY(-50%);
+}
+.fh-ball-held::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 15%;
+  bottom: 15%;
+  width: 1px;
+  background: rgba(0,0,0,0.3);
+  transform: translateX(-50%);
+}
+
+/* ============================================
+   FLYING BALL ANIMATION
+   ============================================ */
+.fh-flying-ball {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(circle at 35% 35%, #f97316, #c2410c);
+  border-radius: 50%;
+  border: 2px solid #9a3412;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 15px rgba(249,115,22,0.4);
+  z-index: 20;
+  pointer-events: none;
+  left: var(--startX);
+  top: var(--startY);
+  animation: fhBallFly 0.6s cubic-bezier(0.25, 0, 0.35, 1) forwards;
+}
+
+/* Basketball seam on flying ball */
+.fh-flying-ball::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 15%;
+  right: 15%;
+  height: 1.5px;
+  background: rgba(0,0,0,0.3);
+  transform: translateY(-50%);
+}
+.fh-flying-ball::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 15%;
+  bottom: 15%;
+  width: 1.5px;
+  background: rgba(0,0,0,0.3);
+  transform: translateX(-50%);
+}
+
+@keyframes fhBallFly {
+  0% {
+    left: var(--startX);
+    top: var(--startY);
+    transform: scale(1) rotate(0deg);
+  }
+  40% {
+    top: calc(var(--endY) - 15%);
+    transform: scale(0.85) rotate(180deg);
+  }
+  100% {
+    left: var(--endX);
+    top: var(--endY);
+    transform: scale(0.7) rotate(360deg);
+  }
+}
+
+/* Swish — ball drops through */
+.fh-flying-ball--swish {
+  animation: fhBallSwish 0.6s cubic-bezier(0.25, 0, 0.35, 1) forwards;
+}
+
+@keyframes fhBallSwish {
+  0% {
+    left: var(--startX);
+    top: var(--startY);
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    top: calc(var(--endY) - 12%);
+    transform: scale(0.8) rotate(200deg);
+    opacity: 1;
+  }
+  80% {
+    left: var(--endX);
+    top: var(--endY);
+    transform: scale(0.65) rotate(320deg);
+    opacity: 1;
+  }
+  100% {
+    left: var(--endX);
+    top: calc(var(--endY) + 8%);
+    transform: scale(0.55) rotate(380deg);
+    opacity: 0.4;
+  }
+}
+
+/* Miss — ball bounces off */
+.fh-flying-ball--miss {
+  animation: fhBallMiss 0.7s cubic-bezier(0.25, 0, 0.6, 1) forwards;
+}
+
+@keyframes fhBallMiss {
+  0% {
+    left: var(--startX);
+    top: var(--startY);
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  45% {
+    top: calc(var(--endY) - 10%);
+    transform: scale(0.8) rotate(180deg);
+    opacity: 1;
+  }
+  65% {
+    left: calc(var(--endX) + 6%);
+    top: var(--endY);
+    transform: scale(0.75) rotate(260deg);
+    opacity: 1;
+  }
+  100% {
+    left: calc(var(--endX) + 12%);
+    top: calc(var(--endY) + 20%);
+    transform: scale(0.6) rotate(400deg);
+    opacity: 0.2;
+  }
+}
+
+/* Close — rim bounce then in */
+.fh-flying-ball--close {
+  animation: fhBallClose 0.65s cubic-bezier(0.25, 0, 0.35, 1) forwards;
+}
+
+@keyframes fhBallClose {
+  0% {
+    left: var(--startX);
+    top: var(--startY);
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  45% {
+    top: calc(var(--endY) - 12%);
+    transform: scale(0.8) rotate(180deg);
+  }
+  70% {
+    left: calc(var(--endX) + 2%);
+    top: calc(var(--endY) - 2%);
+    transform: scale(0.72) rotate(280deg);
+  }
+  100% {
+    left: var(--endX);
+    top: calc(var(--endY) + 6%);
+    transform: scale(0.6) rotate(360deg);
+    opacity: 0.5;
+  }
+}
+
+/* ============================================
+   SIDE BARS
+   ============================================ */
+.fh-sidebar {
+  position: absolute;
+  bottom: 90px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.fh-sidebar--left { left: 10px; }
+.fh-sidebar--right { right: 10px; }
+
+.fh-sidebar-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.6);
+}
+
+.fh-sidebar-track {
+  width: 22px;
+  height: 200px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 11px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.fh-sidebar-fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  border-radius: 11px;
+  transition: height 0.1s ease;
+}
+
+.fh-sidebar-fill--fusion {
+  background: linear-gradient(0deg, #ef4444 0%, #22c55e 100%);
+}
+
+.fh-sidebar-fill--hold {
+  background: linear-gradient(0deg, #2563eb 0%, #60a5fa 100%);
+}
+
+/* ============================================
+   BOTTOM BAR
+   ============================================ */
+.fh-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 76px;
+  background: rgba(5,8,16,0.92);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  border-top: 2px solid rgba(168,85,247,0.2);
+}
+
+.fh-court-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.fh-court-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  transition: 0.2s;
+}
+
+.fh-court-dot.active {
+  width: 22px;
+  border-radius: 10px;
+  background: #a855f7;
+}
+
+.fh-court-name {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 1.5px;
+  margin-left: 8px;
+  text-transform: uppercase;
+}
+
+.fh-message {
+  font-size: 15px;
+  font-weight: 700;
+  color: #00f5ff;
+  text-shadow: 0 0 12px rgba(0,245,255,0.4);
+  letter-spacing: 1px;
+  transition: 0.3s;
+}
+
+.fh-message--splash {
+  color: #00ff88;
+  text-shadow: 0 0 16px rgba(0,255,136,0.6);
+}
+
+/* ============================================
+   SPLASH TEXT
+   ============================================ */
+.fh-splash {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(32px, 5vw, 54px);
+  font-weight: 900;
+  color: #facc15;
+  text-shadow: 0 0 30px rgba(250,204,21,0.6), 0 4px 20px rgba(0,0,0,0.5);
+  z-index: 30;
+  animation: fhSplashIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+
+@keyframes fhSplashIn {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ============================================
+   LEVEL-UP OVERLAY
+   ============================================ */
+.fh-levelup-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at center, rgba(15, 23, 42, 0.88), rgba(2, 6, 18, 0.94));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fhLevelOverlayIn 0.4s ease-out;
+}
+
+@keyframes fhLevelOverlayIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.fh-levelup-card {
+  text-align: center;
+  padding: 36px 48px 40px;
+  border-radius: 24px;
+  background:
+    linear-gradient(168deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+    rgba(10, 16, 38, 0.90);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.50),
+    0 0 60px rgba(250, 204, 21, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  min-width: 320px;
+  animation: fhLevelCardPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes fhLevelCardPop {
+  0% { opacity: 0; transform: scale(0.7) translateY(20px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.fh-levelup-check {
+  font-size: 52px;
+  margin-bottom: 12px;
+  animation: fhCheckBounce 0.6s ease 0.3s both;
+}
+
+@keyframes fhCheckBounce {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.fh-levelup-done {
+  font-size: clamp(16px, 2.2vw, 22px);
+  font-weight: 800;
+  color: #facc15;
+  letter-spacing: 2px;
+  text-shadow: 0 0 18px rgba(250, 204, 21, 0.35);
+  margin-bottom: 8px;
+}
+
+.fh-levelup-arrow {
+  font-size: 28px;
+  margin: 10px 0;
+  color: rgba(255, 255, 255, 0.35);
+  animation: fhArrowPulse 1s ease-in-out infinite;
+}
+
+@keyframes fhArrowPulse {
+  0%, 100% { transform: translateY(0); opacity: 0.35; }
+  50% { transform: translateY(6px); opacity: 0.7; }
+}
+
+.fh-levelup-next {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: rgba(200, 210, 230, 0.50);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.fh-levelup-name {
+  font-size: clamp(24px, 3.5vw, 36px);
+  font-weight: 900;
+  background: linear-gradient(90deg, #ff6b2b, #facc15, #ff6b2b);
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: fhLevelNameShimmer 2s linear infinite;
+  letter-spacing: 1.5px;
+}
+
+@keyframes fhLevelNameShimmer {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 700px) {
+  .fh-hud { padding: 0 10px; height: 46px; }
+  .fh-hud-name { font-size: 13px; }
+  .fh-hud-center { gap: 20px; }
+  .fh-hud-stat-val { font-size: 16px; }
+  .fh-court { left: 28px; right: 28px; }
+  .fh-sidebar-track { height: 150px; width: 18px; }
+  .fh-backboard { width: 90px; height: 55px; }
+  .fh-backboard-inner { width: 56px; height: 38px; }
+  .fh-rim-ring { width: 70px; height: 22px; }
+  .fh-net-container { width: 48px; height: 38px; }
+}
+
+@media (max-width: 480px) {
+  .fh-hud-court { display: none; }
+  .fh-hud-center { gap: 14px; }
+  .fh-court { left: 22px; right: 22px; top: 52px; }
+  .fh-sidebar--left { left: 4px; }
+  .fh-sidebar--right { right: 4px; }
+  .fh-sidebar-track { height: 120px; width: 16px; }
+}
