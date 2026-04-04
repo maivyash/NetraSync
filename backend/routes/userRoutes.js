@@ -2,21 +2,67 @@ import express from "express";
 import db from "../db.js";
 import axios from "axios";
 import multer from "multer";
+import nodemailer from "nodemailer";
+import { createHash, randomInt } from "crypto";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 const router = express.Router();
+const otpStore = new Map();
+const OTP_TTL_MS = 5 * 60 * 1000;
+
+let transporterPromise;
+function getMailerTransporter() {
+    if (!transporterPromise) {
+        const smtpHost = process.env.SMTP_HOST;
+        const smtpPort = Number(process.env.SMTP_PORT || 587);
+        const smtpUser = process.env.SMTP_USER;
+        const smtpPass = process.env.SMTP_PASS;
+
+        if (!smtpHost || !smtpUser || !smtpPass) {
+            throw new Error("SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM.");
+        }
+
+        transporterPromise = Promise.resolve(
+            nodemailer.createTransport({
+                host: smtpHost,
+                port: smtpPort,
+                secure: smtpPort === 465,
+                auth: { user: smtpUser, pass: smtpPass },
+            })
+        );
+    }
+
+    return transporterPromise;
+}
+
+function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function hashPassword(password) {
+    return createHash("sha256").update(password).digest("hex");
+}
+
+async function getUsersTableColumns() {
+    const [rows] = await db.execute(
+        `SELECT COLUMN_NAME
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'`
+    );
+    return new Set(rows.map((r) => r.COLUMN_NAME));
+}
 
 // ─── REGISTER USER ──────────────────────────────────────────
 // Inserts into all 3 tables: users, eye_details, photos
 router.post("/register", async (req, res) => {
-    const { name, phone, age, condition, eye, severity, photo } = req.body;
+    const { name, phone, email, password, age, condition, eye, severity, photo } = req.body;
 
     // Validation
-    if (!name || !phone || !age) {
+    if (!name || !age || (!phone && !email)) {
         return res.status(400).json({
             success: false,
-            error: "Name, phone, and age are required fields",
+            error: "Name, age, and either phone or email are required fields",
         });
     }
 
@@ -26,10 +72,28 @@ router.post("/register", async (req, res) => {
         connection = await db.getConnection();
         await connection.beginTransaction();
 
-        // 1. Insert into users table
+        // 1. Insert into users table with available schema columns
+        const columns = await getUsersTableColumns();
+        const insertCols = ["name", "age"];
+        const insertVals = [name, parseInt(age)];
+
+        if (columns.has("phone")) {
+            insertCols.push("phone");
+            insertVals.push(phone || null);
+        }
+        if (columns.has("email")) {
+            insertCols.push("email");
+            insertVals.push(email || null);
+        }
+        if (columns.has("password") && password) {
+            insertCols.push("password");
+            insertVals.push(hashPassword(password));
+        }
+
+        const placeholders = insertCols.map(() => "?").join(", ");
         const [userResult] = await connection.execute(
-            "INSERT INTO users (name, phone, age) VALUES (?, ?, ?)",
-            [name, phone, parseInt(age)]
+            `INSERT INTO users (${insertCols.join(", ")}) VALUES (${placeholders})`,
+            insertVals
         );
         const userId = userResult.insertId;
 
@@ -238,6 +302,105 @@ router.post("/scanImage", upload.single("photo"), async (req, res) => {
             success: false,
             error: "AI scan failed"
         });
+    }
+});
+
+// ─── AUTH: SEND EMAIL OTP ──────────────────────────────────
+router.post("/auth/send-otp", async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+
+    if (!isValidEmail(email)) {
+        return res.status(400).json({ success: false, error: "Valid email is required" });
+    }
+
+    try {
+        const otp = String(randomInt(100000, 1000000));
+        const expiresAt = Date.now() + OTP_TTL_MS;
+
+        const transporter = await getMailerTransporter();
+        await transporter.sendMail({
+            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            to: email,
+            subject: "NetraSync Password Reset OTP",
+            text: `Your NetraSync OTP is ${otp}. It expires in 5 minutes.`,
+            html: `<p>Your NetraSync OTP is <b>${otp}</b>.</p><p>This OTP expires in 5 minutes.</p>`,
+        });
+
+        otpStore.set(email, { otp, expiresAt, verified: false });
+
+        return res.json({ success: true, message: "OTP sent to email" });
+    } catch (err) {
+        console.error("Send OTP error:", err.message);
+        return res.status(500).json({ success: false, error: err.message || "Failed to send OTP" });
+    }
+});
+
+// ─── AUTH: VERIFY OTP ──────────────────────────────────────
+router.post("/auth/verify-otp", async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const otp = String(req.body?.otp || "").trim();
+
+    if (!isValidEmail(email) || !/^\d{6}$/.test(otp)) {
+        return res.status(400).json({ success: false, error: "Valid email and 6-digit OTP are required" });
+    }
+
+    const record = otpStore.get(email);
+    if (!record) {
+        return res.status(400).json({ success: false, error: "OTP not found. Please request a new OTP." });
+    }
+    if (Date.now() > record.expiresAt) {
+        otpStore.delete(email);
+        return res.status(400).json({ success: false, error: "OTP expired. Please request a new OTP." });
+    }
+    if (record.otp !== otp) {
+        return res.status(400).json({ success: false, error: "Invalid OTP" });
+    }
+
+    otpStore.set(email, { ...record, verified: true });
+    return res.json({ success: true, message: "OTP verified" });
+});
+
+// ─── AUTH: RESET PASSWORD ──────────────────────────────────
+router.post("/auth/reset-password", async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const newPassword = String(req.body?.newPassword || "").trim();
+
+    if (!isValidEmail(email) || newPassword.length < 6) {
+        return res.status(400).json({ success: false, error: "Valid email and new password are required" });
+    }
+
+    const record = otpStore.get(email);
+    if (!record || !record.verified) {
+        return res.status(400).json({ success: false, error: "OTP verification required before resetting password" });
+    }
+    if (Date.now() > record.expiresAt) {
+        otpStore.delete(email);
+        return res.status(400).json({ success: false, error: "OTP expired. Please request a new OTP." });
+    }
+
+    try {
+        const columns = await getUsersTableColumns();
+        if (!columns.has("email") || !columns.has("password")) {
+            return res.status(500).json({
+                success: false,
+                error: "users table must have email and password columns for password reset",
+            });
+        }
+
+        const [result] = await db.execute(
+            "UPDATE users SET password = ? WHERE email = ?",
+            [hashPassword(newPassword), email]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, error: "No account found with this email" });
+        }
+
+        otpStore.delete(email);
+        return res.json({ success: true, message: "Password reset successful" });
+    } catch (err) {
+        console.error("Reset password error:", err.message);
+        return res.status(500).json({ success: false, error: "Failed to reset password" });
     }
 });
 

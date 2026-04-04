@@ -22,6 +22,10 @@ export default function Navbar() {
 
             {/* Navigation */}
             <div>
+                <Button type="link" style={{ color: "#fff" }} onClick={() => navigate("/login")}>
+                    Login
+                </Button>
+
                 <Button type="link" style={{ color: "#fff" }}>
                     Home
                 </Button>

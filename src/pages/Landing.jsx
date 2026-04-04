@@ -126,6 +126,20 @@ export default function Landing() {
                     </span>
                 </div>
                 <div style={{ display: "flex", gap: 12 }}>
+                    <button
+                        style={{
+                            fontFamily: "var(--font-heading)", fontSize: "0.85rem", fontWeight: 600,
+                            letterSpacing: 1, padding: "12px 24px", borderRadius: "var(--radius-btn)",
+                            border: "1px solid rgba(255,255,255,0.12)",
+                            background: "rgba(255,255,255,0.04)", color: "var(--text-secondary)", cursor: "pointer",
+                            transition: "var(--transition)",
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(0,245,255,0.4)"}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"}
+                        onClick={() => navigate("/login")}
+                    >
+                        Login
+                    </button>
                     <button className="btn-neon" onClick={() => navigate("/register")}>
                         <span>Launch App</span>
                     </button>

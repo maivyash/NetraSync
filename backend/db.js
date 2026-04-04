@@ -3,7 +3,7 @@ import mysql from "mysql2/promise";
 const pool = mysql.createPool({
     host: "localhost",
     user: "root",
-    password: "admin",
+    password: "Kunal@2027",
     database: "netrasync",
     waitForConnections: true,
     connectionLimit: 10,
@@ -14,10 +14,10 @@ const pool = mysql.createPool({
 (async () => {
     try {
         const conn = await pool.getConnection();
-        console.log("✅ MySQL Connected (connection pool ready)");
+        console.log("MySQL Connected (connection pool ready)");
         conn.release();
     } catch (err) {
-        console.error("❌ DB Connection Failed:", err.message);
+        console.error(" DB Connection Failed:", err.message);
     }
 })();
 

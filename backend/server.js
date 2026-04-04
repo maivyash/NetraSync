@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import userRoutes from "./routes/userRoutes.js";
@@ -29,6 +30,9 @@ app.get("/", (req, res) => {
         endpoints: {
             health: "GET /api/health",
             register: "POST /api/register",
+            sendOtp: "POST /api/auth/send-otp",
+            verifyOtp: "POST /api/auth/verify-otp",
+            resetPassword: "POST /api/auth/reset-password",
             users: "GET /api/users",
             user: "GET /api/users/:id",
             deleteUser: "DELETE /api/users/:id",
