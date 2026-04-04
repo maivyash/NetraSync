@@ -4,6 +4,16 @@ EYNOIX Server  —  WebSocket + HTTP REST API
 Wraps eye_tracker.py's exact calculations into a network server.
 Zero changes to any math, thresholds, or detection logic.
 
+CAMERA LAZY-OPEN BEHAVIOUR
+───────────────────────────
+The physical camera is NOT opened at startup.
+It opens automatically the first time a WebSocket client connects (live preview)
+or when POST /camera is called to switch cameras.
+When the last WebSocket subscriber disconnects, the camera is released.
+Single-frame endpoints (/capture, /analyze_image, POST /capture) work without
+a persistent camera stream — /capture briefly opens the camera, grabs one frame,
+then releases it again if no live clients are connected.
+
 ENDPOINTS
 ─────────
 WebSocket  ws://localhost:8765
@@ -352,235 +362,378 @@ def detect_cameras(max_n=8):
 class EynoixEngine:
     def __init__(self, cam_idx=0, dominant_side="right", width=640, height=480):
         _ensure_model()
-        self.dominant_side=dominant_side
-        self._lock=threading.Lock()
-        self.running=False
-        self.latest={}
-        self.fps_buf=deque(maxlen=30)
-        self._prev_t=time.perf_counter()
-        self._subscribers=set()
-        self.ratio_smoother=RatioSmoother(window=8)
-        self.pct_buf=deque(maxlen=12)
-        sw,sh=_screen_size()
-        self.cursor_track=CursorTracker(sw,sh,smooth=5,speed=20.0)
-        self.cursor_on=False
-        self.cam=CameraCapture(src=cam_idx,width=width,height=height)
-        time.sleep(0.4)
-        BaseOpts=mp.tasks.BaseOptions
-        FLM=mp.tasks.vision.FaceLandmarker
-        FLMOpts=mp.tasks.vision.FaceLandmarkerOptions
-        RunMode=mp.tasks.vision.RunningMode
-        opts=FLMOpts(
+        self.cam_idx     = cam_idx
+        self.cam_width   = width
+        self.cam_height  = height
+        self.dominant_side = dominant_side
+
+        self._lock       = threading.Lock()
+        self.running     = False        # live-loop running flag
+        self.latest      = {}
+        self.fps_buf     = deque(maxlen=30)
+        self._prev_t     = time.perf_counter()
+        self._subscribers = set()
+
+        # Camera state — None until first live subscriber connects
+        self.cam: Optional[CameraCapture] = None
+        self._cam_lock   = threading.Lock()   # guards open/close of self.cam
+        self._live_count = 0                  # number of active WS subscribers
+
+        self.ratio_smoother = RatioSmoother(window=8)
+        self.pct_buf     = deque(maxlen=12)
+        sw, sh           = _screen_size()
+        self.cursor_track = CursorTracker(sw, sh, smooth=5, speed=20.0)
+        self.cursor_on   = False
+
+        BaseOpts = mp.tasks.BaseOptions
+        FLM      = mp.tasks.vision.FaceLandmarker
+        FLMOpts  = mp.tasks.vision.FaceLandmarkerOptions
+        RunMode  = mp.tasks.vision.RunningMode
+        opts = FLMOpts(
             base_options=BaseOpts(model_asset_path=MODEL_FILE),
             running_mode=RunMode.IMAGE, num_faces=1,
-            min_face_detection_confidence=0.5, min_face_presence_confidence=0.5,
+            min_face_detection_confidence=0.5,
+            min_face_presence_confidence=0.5,
             min_tracking_confidence=0.5,
-            output_face_blendshapes=False, output_facial_transformation_matrixes=False)
-        self.landmarker=FLM.create_from_options(opts)
-        self.left_eye=EyeGaze("Left",LEFT_IRIS_POINTS,LEFT_IRIS_CENTER,
-                              LEFT_EYE_INNER,LEFT_EYE_OUTER,LEFT_EYE_TOP,LEFT_EYE_BOTTOM,C_IRIS_L)
-        self.right_eye=EyeGaze("Right",RIGHT_IRIS_POINTS,RIGHT_IRIS_CENTER,
-                               RIGHT_EYE_INNER,RIGHT_EYE_OUTER,RIGHT_EYE_TOP,RIGHT_EYE_BOTTOM,C_IRIS_R)
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False)
+        self.landmarker = FLM.create_from_options(opts)
+
+        self.left_eye  = EyeGaze("Left",  LEFT_IRIS_POINTS,  LEFT_IRIS_CENTER,
+                                 LEFT_EYE_INNER,  LEFT_EYE_OUTER,  LEFT_EYE_TOP,  LEFT_EYE_BOTTOM,  C_IRIS_L)
+        self.right_eye = EyeGaze("Right", RIGHT_IRIS_POINTS, RIGHT_IRIS_CENTER,
+                                 RIGHT_EYE_INNER, RIGHT_EYE_OUTER, RIGHT_EYE_TOP, RIGHT_EYE_BOTTOM, C_IRIS_R)
         self._set_dom(dominant_side)
-        self._thread=threading.Thread(target=self._loop,daemon=True)
 
-    def _set_dom(self,side):
-        self.dominant_side=side
-        if side=="left": self.dominant,self.non_dom=self.left_eye,self.right_eye
-        else:            self.dominant,self.non_dom=self.right_eye,self.left_eye
+        self._thread = threading.Thread(target=self._loop, daemon=True)
 
-    def start(self): self.running=True; self._thread.start()
+    # ── Camera lifecycle helpers ───────────────────────────────────────────────
+
+    def _open_camera(self):
+        """Open the camera if it isn't already open. Thread-safe."""
+        with self._cam_lock:
+            if self.cam is None:
+                print(f"  [CAM] Opening camera #{self.cam_idx} for live preview …")
+                self.cam = CameraCapture(
+                    src=self.cam_idx, width=self.cam_width, height=self.cam_height)
+                time.sleep(0.4)   # let the capture thread warm up
+                print(f"  [CAM] Camera #{self.cam_idx} ready.")
+
+    def _close_camera(self):
+        """Release the camera. Thread-safe."""
+        with self._cam_lock:
+            if self.cam is not None:
+                print(f"  [CAM] Releasing camera #{self.cam_idx} (no live viewers).")
+                self.cam.release()
+                self.cam = None
+
+    def _grab_one_frame(self):
+        """
+        Grab a single frame for /capture without requiring the live loop.
+        Opens the camera briefly if not already open; leaves it open if live
+        subscribers are connected, closes it again if none are.
+        """
+        with self._cam_lock:
+            transient = self.cam is None    # we opened it just for this call
+            if transient:
+                cap = cv2.VideoCapture(self.cam_idx, cv2.CAP_DSHOW)
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH,  self.cam_width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.cam_height)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                # discard a couple of buffered frames so we get a fresh one
+                for _ in range(3):
+                    cap.read()
+                ret, frame = cap.read()
+                cap.release()
+                return cv2.flip(frame, 1) if ret else None
+            else:
+                frame = self.cam.read()
+                return cv2.flip(frame, 1) if frame is not None else None
+
+    # ── Dominant / dom helpers ─────────────────────────────────────────────────
+
+    def _set_dom(self, side):
+        self.dominant_side = side
+        if side == "left":
+            self.dominant, self.non_dom = self.left_eye, self.right_eye
+        else:
+            self.dominant, self.non_dom = self.right_eye, self.left_eye
+
+    # ── Engine start/stop ─────────────────────────────────────────────────────
+
+    def start(self):
+        """Start the background processing thread (camera stays closed until needed)."""
+        self.running = True
+        self._thread.start()
 
     def stop(self):
-        self.running=False; self.cam.release(); self.landmarker.close()
+        self.running = False
+        self._close_camera()
+        self.landmarker.close()
+
+    # ── Pipeline (unchanged math) ─────────────────────────────────────────────
 
     def _run_pipeline(self, frame):
-        """
-        Exact pipeline from eye_tracker.py main() loop:
-        1. update raw landmarks
-        2. push to ratio smoother
-        3. apply smoothed ratios
-        4. head pose
-        5. calc_misalignment (smoothed + compensated)
-        6. pct smoothing
-        7. re-derive color
-        """
-        h,w=frame.shape[:2]
-        rgb=cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
-        mp_img=mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb)
-        result=self.landmarker.detect(mp_img)
+        h, w = frame.shape[:2]
+        rgb    = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        result = self.landmarker.detect(mp_img)
 
-        now=time.perf_counter()
-        self.fps_buf.append(1.0/max(now-self._prev_t,1e-6))
-        self._prev_t=now
-        fps=float(np.mean(self.fps_buf))
+        now = time.perf_counter()
+        self.fps_buf.append(1.0 / max(now - self._prev_t, 1e-6))
+        self._prev_t = now
+        fps = float(np.mean(self.fps_buf))
 
         if not result.face_landmarks:
-            return {"type":"frame","face_detected":False,"fps":round(fps,1),"timestamp":time.time()}
+            return {"type": "frame", "face_detected": False,
+                    "fps": round(fps, 1), "timestamp": time.time()}
 
-        lms=result.face_landmarks[0]
-        self.left_eye.update(lms,w,h)
-        self.right_eye.update(lms,w,h)
-        self.ratio_smoother.push(self.left_eye,self.right_eye)
-        self.ratio_smoother.apply_smoothed(self.left_eye,self.right_eye)
-        head_yaw,head_pitch,head_roll=estimate_head_pose(lms,w,h)
-        m=calc_misalignment(self.dominant,self.non_dom,head_yaw)
+        lms = result.face_landmarks[0]
+        self.left_eye.update(lms, w, h)
+        self.right_eye.update(lms, w, h)
+        self.ratio_smoother.push(self.left_eye, self.right_eye)
+        self.ratio_smoother.apply_smoothed(self.left_eye, self.right_eye)
+        head_yaw, head_pitch, head_roll = estimate_head_pose(lms, w, h)
+        m = calc_misalignment(self.dominant, self.non_dom, head_yaw)
         self.pct_buf.append(m.percentage)
-        m.percentage=float(np.mean(self.pct_buf))
-        if m.percentage<MILD_THR: m.color=C_GREEN
-        elif m.percentage<MOD_THR: m.color=C_YELLOW
-        else: m.color=C_RED
-        if self.cursor_on: self.cursor_track.move(self.dominant)
-        ipd=tilt=None
+        m.percentage = float(np.mean(self.pct_buf))
+        if   m.percentage < MILD_THR: m.color = C_GREEN
+        elif m.percentage < MOD_THR:  m.color = C_YELLOW
+        else:                          m.color = C_RED
+        if self.cursor_on:
+            self.cursor_track.move(self.dominant)
+        ipd = tilt = None
         if self.left_eye.iris_center and self.right_eye.iris_center:
-            dx=self.right_eye.iris_center[0]-self.left_eye.iris_center[0]
-            dy=self.right_eye.iris_center[1]-self.left_eye.iris_center[1]
-            ipd=round(math.sqrt(dx*dx+dy*dy),2)
-            tilt=round(math.degrees(math.atan2(dy,dx)),2)
+            dx = self.right_eye.iris_center[0] - self.left_eye.iris_center[0]
+            dy = self.right_eye.iris_center[1] - self.left_eye.iris_center[1]
+            ipd  = round(math.sqrt(dx*dx + dy*dy), 2)
+            tilt = round(math.degrees(math.atan2(dy, dx)), 2)
         return {
-            "type":"frame","face_detected":True,"fps":round(fps,1),
-            "timestamp":time.time(),"dominant_side":self.dominant_side,
-            "left_eye":self.left_eye.to_dict(),"right_eye":self.right_eye.to_dict(),
-            "dominant_eye":self.dominant.to_dict(),"non_dominant_eye":self.non_dom.to_dict(),
-            "misalignment":m.to_dict(),
-            "head_pose":{"yaw_deg":round(head_yaw,2),"pitch_deg":round(head_pitch,2),"roll_deg":round(head_roll,2)},
-            "interpupillary_distance_px":ipd,"head_tilt_deg":tilt,"cursor_active":self.cursor_on,
+            "type": "frame", "face_detected": True, "fps": round(fps, 1),
+            "timestamp": time.time(), "dominant_side": self.dominant_side,
+            "left_eye": self.left_eye.to_dict(), "right_eye": self.right_eye.to_dict(),
+            "dominant_eye": self.dominant.to_dict(), "non_dominant_eye": self.non_dom.to_dict(),
+            "misalignment": m.to_dict(),
+            "head_pose": {"yaw_deg": round(head_yaw, 2),
+                          "pitch_deg": round(head_pitch, 2),
+                          "roll_deg": round(head_roll, 2)},
+            "interpupillary_distance_px": ipd, "head_tilt_deg": tilt,
+            "cursor_active": self.cursor_on,
         }
 
     def _loop(self):
+        """
+        Live processing loop.
+        Sleeps cheaply when no subscribers (camera is also closed at that point).
+        """
         while self.running:
-            frame=self.cam.read()
-            if frame is None: time.sleep(0.005); continue
-            frame=cv2.flip(frame,1)
-            try: payload=self._run_pipeline(frame)
-            except Exception as e: payload={"type":"error","message":str(e),"timestamp":time.time()}
-            with self._lock: self.latest=payload
+            with self._lock:
+                has_subs = bool(self._subscribers)
+            if not has_subs:
+                time.sleep(0.05)
+                continue
+
+            # Camera must be open if we have subscribers
+            self._open_camera()
+
+            frame = self.cam.read() if self.cam else None
+            if frame is None:
+                time.sleep(0.005)
+                continue
+
+            frame = cv2.flip(frame, 1)
+            try:
+                payload = self._run_pipeline(frame)
+            except Exception as e:
+                payload = {"type": "error", "message": str(e), "timestamp": time.time()}
+
+            with self._lock:
+                self.latest = payload
+
             for q in list(self._subscribers):
-                try: q.put_nowait(payload)
-                except Exception: pass
+                try:
+                    q.put_nowait(payload)
+                except Exception:
+                    pass
 
-    def subscribe(self,q):
-        with self._lock: self._subscribers.add(q)
+    # ── Subscriber management (controls camera lifecycle) ─────────────────────
 
-    def unsubscribe(self,q):
-        with self._lock: self._subscribers.discard(q)
+    def subscribe(self, q):
+        with self._lock:
+            self._subscribers.add(q)
+            self._live_count = len(self._subscribers)
+        # Camera will be opened lazily by _loop on next iteration
+
+    def unsubscribe(self, q):
+        with self._lock:
+            self._subscribers.discard(q)
+            self._live_count = len(self._subscribers)
+            no_subs = self._live_count == 0
+
+        if no_subs:
+            # Release camera in a background thread so we don't block the WS handler
+            threading.Thread(target=self._close_camera, daemon=True).start()
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
     def get_latest(self):
-        with self._lock: return dict(self.latest)
+        with self._lock:
+            return dict(self.latest)
 
     def capture(self, include_image=False):
-        """Same code path as pressing C in eye_tracker.py."""
-        frame=self.cam.read()
-        if frame is None: return {"error":"No frame available"}
-        frame=cv2.flip(frame,1); h,w=frame.shape[:2]
-        cap_le=copy.deepcopy(self.left_eye); cap_re=copy.deepcopy(self.right_eye)
-        cap_dom=cap_le if self.dominant_side=="left" else cap_re
-        cap_nd=cap_re if self.dominant_side=="left" else cap_le
-        rgb=cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
-        mp_img=mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb)
-        result=self.landmarker.detect(mp_img)
+        """Same code path as pressing C in eye_tracker.py.
+        Uses _grab_one_frame() so camera opens transiently if needed."""
+        frame = self._grab_one_frame()
+        if frame is None:
+            return {"error": "No frame available"}
+
+        h, w = frame.shape[:2]
+        cap_le  = copy.deepcopy(self.left_eye)
+        cap_re  = copy.deepcopy(self.right_eye)
+        cap_dom = cap_le if self.dominant_side == "left" else cap_re
+        cap_nd  = cap_re if self.dominant_side == "left" else cap_le
+
+        rgb    = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        result = self.landmarker.detect(mp_img)
         if not result.face_landmarks:
-            return {"type":"capture","face_detected":False,"timestamp":time.time()}
-        lms=result.face_landmarks[0]
-        cap_le.update(lms,w,h); cap_re.update(lms,w,h)
-        head_yaw,head_pitch,head_roll=estimate_head_pose(lms,w,h)
-        m=calc_misalignment(cap_dom,cap_nd,head_yaw)
-        ipd=tilt=None
+            return {"type": "capture", "face_detected": False, "timestamp": time.time()}
+
+        lms = result.face_landmarks[0]
+        cap_le.update(lms, w, h)
+        cap_re.update(lms, w, h)
+        head_yaw, head_pitch, head_roll = estimate_head_pose(lms, w, h)
+        m = calc_misalignment(cap_dom, cap_nd, head_yaw)
+        ipd = tilt = None
         if cap_le.iris_center and cap_re.iris_center:
-            dx=cap_re.iris_center[0]-cap_le.iris_center[0]
-            dy=cap_re.iris_center[1]-cap_le.iris_center[1]
-            ipd=round(math.sqrt(dx*dx+dy*dy),2); tilt=round(math.degrees(math.atan2(dy,dx)),2)
-        payload={
-            "type":"capture","face_detected":True,"timestamp":time.time(),
-            "dominant_side":self.dominant_side,"frame_size":{"width":w,"height":h},
-            "left_eye":cap_le.to_dict(),"right_eye":cap_re.to_dict(),
-            "dominant_eye":cap_dom.to_dict(),"non_dominant_eye":cap_nd.to_dict(),
-            "misalignment":m.to_dict(),
-            "head_pose":{"yaw_deg":round(head_yaw,2),"pitch_deg":round(head_pitch,2),"roll_deg":round(head_roll,2)},
-            "interpupillary_distance_px":ipd,"head_tilt_deg":tilt,
+            dx = cap_re.iris_center[0] - cap_le.iris_center[0]
+            dy = cap_re.iris_center[1] - cap_le.iris_center[1]
+            ipd  = round(math.sqrt(dx*dx + dy*dy), 2)
+            tilt = round(math.degrees(math.atan2(dy, dx)), 2)
+        payload = {
+            "type": "capture", "face_detected": True, "timestamp": time.time(),
+            "dominant_side": self.dominant_side, "frame_size": {"width": w, "height": h},
+            "left_eye": cap_le.to_dict(), "right_eye": cap_re.to_dict(),
+            "dominant_eye": cap_dom.to_dict(), "non_dominant_eye": cap_nd.to_dict(),
+            "misalignment": m.to_dict(),
+            "head_pose": {"yaw_deg": round(head_yaw, 2),
+                          "pitch_deg": round(head_pitch, 2),
+                          "roll_deg": round(head_roll, 2)},
+            "interpupillary_distance_px": ipd, "head_tilt_deg": tilt,
         }
         if include_image:
-            _,buf=cv2.imencode(".jpg",frame,[cv2.IMWRITE_JPEG_QUALITY,88])
-            payload["image_base64"]=base64.b64encode(buf).decode()
+            _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 88])
+            payload["image_base64"] = base64.b64encode(buf).decode()
         return payload
 
-    def analyze_image(self, image_bytes:bytes):
+    def analyze_image(self, image_bytes: bytes):
         """
         Analyse an image received from an external server (e.g. Node.js).
         image_bytes: raw JPEG/PNG bytes (already decoded from base64).
-        Uses fresh EyeGaze objects — no live state carryover.
-        Returns same shape as capture().
+        No camera access required — works purely on the supplied bytes.
         """
-        nparr=np.frombuffer(image_bytes,np.uint8)
-        frame=cv2.imdecode(nparr,cv2.IMREAD_COLOR)
-        if frame is None: return {"error":"Could not decode image"}
-        frame=cv2.flip(frame,1); h,w=frame.shape[:2]
-        cap_le=EyeGaze("Left",LEFT_IRIS_POINTS,LEFT_IRIS_CENTER,
-                       LEFT_EYE_INNER,LEFT_EYE_OUTER,LEFT_EYE_TOP,LEFT_EYE_BOTTOM,C_IRIS_L)
-        cap_re=EyeGaze("Right",RIGHT_IRIS_POINTS,RIGHT_IRIS_CENTER,
-                       RIGHT_EYE_INNER,RIGHT_EYE_OUTER,RIGHT_EYE_TOP,RIGHT_EYE_BOTTOM,C_IRIS_R)
-        cap_dom=cap_le if self.dominant_side=="left" else cap_re
-        cap_nd=cap_re if self.dominant_side=="left" else cap_le
-        rgb=cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
-        mp_img=mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb)
-        result=self.landmarker.detect(mp_img)
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        frame  = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if frame is None:
+            return {"error": "Could not decode image"}
+        frame = cv2.flip(frame, 1)
+        h, w  = frame.shape[:2]
+        cap_le  = EyeGaze("Left",  LEFT_IRIS_POINTS,  LEFT_IRIS_CENTER,
+                          LEFT_EYE_INNER,  LEFT_EYE_OUTER,  LEFT_EYE_TOP,  LEFT_EYE_BOTTOM,  C_IRIS_L)
+        cap_re  = EyeGaze("Right", RIGHT_IRIS_POINTS, RIGHT_IRIS_CENTER,
+                          RIGHT_EYE_INNER, RIGHT_EYE_OUTER, RIGHT_EYE_TOP, RIGHT_EYE_BOTTOM, C_IRIS_R)
+        cap_dom = cap_le if self.dominant_side == "left" else cap_re
+        cap_nd  = cap_re if self.dominant_side == "left" else cap_le
+        rgb    = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        result = self.landmarker.detect(mp_img)
         if not result.face_landmarks:
-            return {"type":"analyze_image","face_detected":False,"timestamp":time.time()}
-        lms=result.face_landmarks[0]
-        cap_le.update(lms,w,h); cap_re.update(lms,w,h)
-        head_yaw,head_pitch,head_roll=estimate_head_pose(lms,w,h)
-        m=calc_misalignment(cap_dom,cap_nd,head_yaw)
-        ipd=tilt=None
+            return {"type": "analyze_image", "face_detected": False, "timestamp": time.time()}
+        lms = result.face_landmarks[0]
+        cap_le.update(lms, w, h)
+        cap_re.update(lms, w, h)
+        head_yaw, head_pitch, head_roll = estimate_head_pose(lms, w, h)
+        m = calc_misalignment(cap_dom, cap_nd, head_yaw)
+        ipd = tilt = None
         if cap_le.iris_center and cap_re.iris_center:
-            dx=cap_re.iris_center[0]-cap_le.iris_center[0]
-            dy=cap_re.iris_center[1]-cap_le.iris_center[1]
-            ipd=round(math.sqrt(dx*dx+dy*dy),2); tilt=round(math.degrees(math.atan2(dy,dx)),2)
+            dx = cap_re.iris_center[0] - cap_le.iris_center[0]
+            dy = cap_re.iris_center[1] - cap_le.iris_center[1]
+            ipd  = round(math.sqrt(dx*dx + dy*dy), 2)
+            tilt = round(math.degrees(math.atan2(dy, dx)), 2)
         return {
-            "type":"analyze_image","face_detected":True,"timestamp":time.time(),
-            "dominant_side":self.dominant_side,"frame_size":{"width":w,"height":h},
-            "left_eye":cap_le.to_dict(),"right_eye":cap_re.to_dict(),
-            "dominant_eye":cap_dom.to_dict(),"non_dominant_eye":cap_nd.to_dict(),
-            "misalignment":m.to_dict(),
-            "head_pose":{"yaw_deg":round(head_yaw,2),"pitch_deg":round(head_pitch,2),"roll_deg":round(head_roll,2)},
-            "interpupillary_distance_px":ipd,"head_tilt_deg":tilt,
+            "type": "analyze_image", "face_detected": True, "timestamp": time.time(),
+            "dominant_side": self.dominant_side, "frame_size": {"width": w, "height": h},
+            "left_eye": cap_le.to_dict(), "right_eye": cap_re.to_dict(),
+            "dominant_eye": cap_dom.to_dict(), "non_dominant_eye": cap_nd.to_dict(),
+            "misalignment": m.to_dict(),
+            "head_pose": {"yaw_deg": round(head_yaw, 2),
+                          "pitch_deg": round(head_pitch, 2),
+                          "roll_deg": round(head_roll, 2)},
+            "interpupillary_distance_px": ipd, "head_tilt_deg": tilt,
         }
 
-    def get_cameras(self): return detect_cameras()
+    def get_cameras(self):
+        return detect_cameras()
 
-    def set_dominant(self,side):
-        if side not in("left","right"): return{"error":"side must be left or right"}
-        self._set_dom(side); self.pct_buf.clear(); self.ratio_smoother.reset()
-        return{"ok":True,"dominant_side":side}
+    def set_dominant(self, side):
+        if side not in ("left", "right"):
+            return {"error": "side must be left or right"}
+        self._set_dom(side)
+        self.pct_buf.clear()
+        self.ratio_smoother.reset()
+        return {"ok": True, "dominant_side": side}
 
-    def set_camera(self,idx,width=640,height=480):
-        self.cam.release(); time.sleep(0.3)
-        self.cam=CameraCapture(src=idx,width=width,height=height); time.sleep(0.4)
-        return{"ok":True,"camera":idx}
+    def set_camera(self, idx, width=640, height=480):
+        # Release old camera first (if live), update config, reopen if live
+        with self._cam_lock:
+            if self.cam is not None:
+                self.cam.release()
+                self.cam = None
+        self.cam_idx    = idx
+        self.cam_width  = width
+        self.cam_height = height
+        # If live subscribers exist, reopen immediately; otherwise stays closed
+        with self._lock:
+            has_subs = bool(self._subscribers)
+        if has_subs:
+            self._open_camera()
+        return {"ok": True, "camera": idx}
 
     def reset_smoothing(self):
-        self.pct_buf.clear(); self.ratio_smoother.reset(); self.cursor_track.reset()
-        return{"ok":True}
+        self.pct_buf.clear()
+        self.ratio_smoother.reset()
+        self.cursor_track.reset()
+        return {"ok": True}
 
-    def enable_cursor(self,speed=20.0):
-        self.cursor_track.speed=speed; self.cursor_on=True
-        return{"ok":True,"cursor_active":True,"speed":speed}
+    def enable_cursor(self, speed=20.0):
+        self.cursor_track.speed = speed
+        self.cursor_on = True
+        return {"ok": True, "cursor_active": True, "speed": speed}
 
     def disable_cursor(self):
-        self.cursor_on=False; self.cursor_track.reset()
-        return{"ok":True,"cursor_active":False}
+        self.cursor_on = False
+        self.cursor_track.reset()
+        return {"ok": True, "cursor_active": False}
 
     def get_gaze_direction(self):
-        with self._lock: d=dict(self.latest)
-        if not d.get("face_detected"): return{"direction":"unknown","face_detected":False}
-        dom=d.get("dominant_eye",{})
-        hdeg=dom.get("h_angle_deg",0); vdeg=dom.get("v_angle_deg",0)
-        if abs(hdeg)<5 and abs(vdeg)<5: cardinal="center"
-        elif abs(hdeg)>=abs(vdeg): cardinal="right" if hdeg>0 else "left"
-        else: cardinal="down" if vdeg>0 else "up"
-        return{"direction":cardinal,"h_ratio":dom.get("h_ratio"),"v_ratio":dom.get("v_ratio"),
-               "h_angle_deg":round(hdeg,2),"v_angle_deg":round(vdeg,2),"face_detected":True}
+        with self._lock:
+            d = dict(self.latest)
+        if not d.get("face_detected"):
+            return {"direction": "unknown", "face_detected": False}
+        dom  = d.get("dominant_eye", {})
+        hdeg = dom.get("h_angle_deg", 0)
+        vdeg = dom.get("v_angle_deg", 0)
+        if   abs(hdeg) < 5 and abs(vdeg) < 5: cardinal = "center"
+        elif abs(hdeg) >= abs(vdeg):           cardinal = "right" if hdeg > 0 else "left"
+        else:                                  cardinal = "down"  if vdeg > 0 else "up"
+        return {
+            "direction":    cardinal,
+            "h_ratio":      dom.get("h_ratio"),
+            "v_ratio":      dom.get("v_ratio"),
+            "h_angle_deg":  round(hdeg, 2),
+            "v_angle_deg":  round(vdeg, 2),
+            "face_detected": True,
+        }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -590,53 +743,61 @@ class EynoixEngine:
 _engine: EynoixEngine = None
 
 
-def _dispatch(cmd:dict)->dict:
-    action=cmd.get("action",""); _id=cmd.get("_id")
-    if   action=="capture":       r=_engine.capture(include_image=cmd.get("include_image",False))
-    elif action=="analyze_image":
-        try: img=base64.b64decode(cmd.get("image_base64",""))
-        except: img=b""
-        r=_engine.analyze_image(img)
-    elif action=="get_latest":    r=_engine.get_latest()
-    elif action=="get_cameras":   r={"type":"cameras","cameras":_engine.get_cameras()}
-    elif action=="set_dominant":  r=_engine.set_dominant(cmd.get("side","right"))
-    elif action=="set_camera":    r=_engine.set_camera(cmd.get("index",0),cmd.get("width",640),cmd.get("height",480))
-    elif action=="reset_smoothing": r=_engine.reset_smoothing()
-    elif action=="enable_cursor": r=_engine.enable_cursor(cmd.get("speed",20.0))
-    elif action=="disable_cursor":r=_engine.disable_cursor()
-    elif action=="gaze_direction":r=_engine.get_gaze_direction()
-    elif action=="ping":          r={"type":"pong","timestamp":time.time()}
-    else:                         r={"error":f"Unknown action: {action}"}
-    if _id is not None: r["_id"]=_id
+def _dispatch(cmd: dict) -> dict:
+    action = cmd.get("action", "")
+    _id    = cmd.get("_id")
+    if   action == "capture":
+        r = _engine.capture(include_image=cmd.get("include_image", False))
+    elif action == "analyze_image":
+        try:   img = base64.b64decode(cmd.get("image_base64", ""))
+        except: img = b""
+        r = _engine.analyze_image(img)
+    elif action == "get_latest":    r = _engine.get_latest()
+    elif action == "get_cameras":   r = {"type": "cameras", "cameras": _engine.get_cameras()}
+    elif action == "set_dominant":  r = _engine.set_dominant(cmd.get("side", "right"))
+    elif action == "set_camera":
+        r = _engine.set_camera(cmd.get("index", 0), cmd.get("width", 640), cmd.get("height", 480))
+    elif action == "reset_smoothing": r = _engine.reset_smoothing()
+    elif action == "enable_cursor": r = _engine.enable_cursor(cmd.get("speed", 20.0))
+    elif action == "disable_cursor": r = _engine.disable_cursor()
+    elif action == "gaze_direction": r = _engine.get_gaze_direction()
+    elif action == "ping":          r = {"type": "pong", "timestamp": time.time()}
+    else:                           r = {"error": f"Unknown action: {action}"}
+    if _id is not None:
+        r["_id"] = _id
     return r
 
 
 async def _ws_handler(websocket):
-    q=asyncio.Queue(maxsize=8)
+    q = asyncio.Queue(maxsize=8)
     _engine.subscribe(q)
-    print(f"  [WS] + {websocket.remote_address}")
-    loop=asyncio.get_event_loop()
+    print(f"  [WS] + {websocket.remote_address}  (camera will open if not already)")
+    loop = asyncio.get_event_loop()
 
     async def _send():
         while True:
-            payload=await q.get()
-            try: await websocket.send(json.dumps(payload))
-            except Exception: break
+            payload = await q.get()
+            try:
+                await websocket.send(json.dumps(payload))
+            except Exception:
+                break
 
     async def _recv():
         async for raw in websocket:
             try:
-                cmd=json.loads(raw)
-                resp=await loop.run_in_executor(None,_dispatch,cmd)
+                cmd  = json.loads(raw)
+                resp = await loop.run_in_executor(None, _dispatch, cmd)
                 await websocket.send(json.dumps(resp))
             except Exception as e:
-                await websocket.send(json.dumps({"error":str(e)}))
+                await websocket.send(json.dumps({"error": str(e)}))
 
-    try: await asyncio.gather(_send(),_recv())
-    except Exception: pass
+    try:
+        await asyncio.gather(_send(), _recv())
+    except Exception:
+        pass
     finally:
         _engine.unsubscribe(q)
-        print(f"  [WS] - {websocket.remote_address}")
+        print(f"  [WS] - {websocket.remote_address}  (camera released if no viewers remain)")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -644,71 +805,80 @@ async def _ws_handler(websocket):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _cors(h):
-    h.send_header("Access-Control-Allow-Origin","*")
-    h.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS")
-    h.send_header("Access-Control-Allow-Headers","Content-Type,Authorization")
+    h.send_header("Access-Control-Allow-Origin", "*")
+    h.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+    h.send_header("Access-Control-Allow-Headers", "Content-Type,Authorization")
 
-def _json(h,data,status=200):
-    body=json.dumps(data,indent=2).encode()
+def _json(h, data, status=200):
+    body = json.dumps(data, indent=2).encode()
     h.send_response(status)
-    h.send_header("Content-Type","application/json")
-    h.send_header("Content-Length",str(len(body)))
+    h.send_header("Content-Type", "application/json")
+    h.send_header("Content-Length", str(len(body)))
     _cors(h); h.end_headers(); h.wfile.write(body)
 
 class RESTHandler(BaseHTTPRequestHandler):
-    def log_message(self,*a): pass
+    def log_message(self, *a): pass
 
     def do_OPTIONS(self):
         self.send_response(204); _cors(self); self.end_headers()
 
     def do_GET(self):
-        path=self.path.split("?")[0]
-        routes={
-            "/":lambda:{"service":"EYNOIX","version":"1.0",
-                "ws":"ws://localhost:8765",
-                "GET":["/latest","/cameras","/gaze","/reset","/health"],
-                "POST":["/capture","/capture/image","/dominant","/camera",
-                        "/cursor/enable","/cursor/disable","/analyze_image"]},
-            "/health":  lambda:{"status":"ok","timestamp":time.time()},
-            "/latest":  lambda:_engine.get_latest(),
-            "/cameras": lambda:{"cameras":_engine.get_cameras()},
-            "/gaze":    lambda:_engine.get_gaze_direction(),
-            "/reset":   lambda:_engine.reset_smoothing(),
+        path = self.path.split("?")[0]
+        routes = {
+            "/": lambda: {
+                "service": "EYNOIX", "version": "1.0",
+                "camera_policy": "lazy — opens on first WS subscriber, closes when last disconnects",
+                "ws":  "ws://localhost:8765",
+                "GET":  ["/latest", "/cameras", "/gaze", "/reset", "/health"],
+                "POST": ["/capture", "/capture/image", "/dominant", "/camera",
+                         "/cursor/enable", "/cursor/disable", "/analyze_image"],
+            },
+            "/health":  lambda: {"status": "ok", "timestamp": time.time(),
+                                 "camera_open": _engine.cam is not None,
+                                 "live_viewers": _engine._live_count},
+            "/latest":  lambda: _engine.get_latest(),
+            "/cameras": lambda: {"cameras": _engine.get_cameras()},
+            "/gaze":    lambda: _engine.get_gaze_direction(),
+            "/reset":   lambda: _engine.reset_smoothing(),
         }
-        fn=routes.get(path)
-        if fn: _json(self,fn())
-        else:  _json(self,{"error":"Not found"},404)
+        fn = routes.get(path)
+        if fn: _json(self, fn())
+        else:  _json(self, {"error": "Not found"}, 404)
 
     def do_POST(self):
-        path=self.path.split("?")[0]
-        length=int(self.headers.get("Content-Length",0))
-        body=json.loads(self.rfile.read(length)) if length else {}
+        path   = self.path.split("?")[0]
+        length = int(self.headers.get("Content-Length", 0))
+        body   = json.loads(self.rfile.read(length)) if length else {}
 
-        if path=="/capture":
-            _json(self,_engine.capture(include_image=body.get("include_image",False)))
-        elif path=="/capture/image":
-            _json(self,_engine.capture(include_image=True))
-        elif path=="/dominant":
-            _json(self,_engine.set_dominant(body.get("side","right")))
-        elif path=="/camera":
-            _json(self,_engine.set_camera(body.get("index",0),body.get("width",640),body.get("height",480)))
-        elif path=="/cursor/enable":
-            _json(self,_engine.enable_cursor(body.get("speed",20.0)))
-        elif path=="/cursor/disable":
-            _json(self,_engine.disable_cursor())
-        elif path=="/analyze_image":
-            # ── NODE.JS SENDS IMAGES HERE ──────────────────────────────────
-            if "dominant" in body: _engine.set_dominant(body["dominant"])
-            raw=body.get("image_base64","")
-            try: img_bytes=base64.b64decode(raw)
-            except Exception: _json(self,{"error":"Invalid base64"},400); return
-            _json(self,_engine.analyze_image(img_bytes))
+        if path == "/capture":
+            _json(self, _engine.capture(include_image=body.get("include_image", False)))
+        elif path == "/capture/image":
+            _json(self, _engine.capture(include_image=True))
+        elif path == "/dominant":
+            _json(self, _engine.set_dominant(body.get("side", "right")))
+        elif path == "/camera":
+            _json(self, _engine.set_camera(
+                body.get("index", 0), body.get("width", 640), body.get("height", 480)))
+        elif path == "/cursor/enable":
+            _json(self, _engine.enable_cursor(body.get("speed", 20.0)))
+        elif path == "/cursor/disable":
+            _json(self, _engine.disable_cursor())
+        elif path == "/analyze_image":
+            if "dominant" in body:
+                _engine.set_dominant(body["dominant"])
+            raw = body.get("image_base64", "")
+            try:
+                img_bytes = base64.b64decode(raw)
+            except Exception:
+                _json(self, {"error": "Invalid base64"}, 400)
+                return
+            _json(self, _engine.analyze_image(img_bytes))
         else:
-            _json(self,{"error":"Not found"},404)
+            _json(self, {"error": "Not found"}, 404)
 
 
 def _run_http(port):
-    srv=HTTPServer(("0.0.0.0",port),RESTHandler)
+    srv = HTTPServer(("0.0.0.0", port), RESTHandler)
     srv.serve_forever()
 
 
@@ -717,35 +887,45 @@ def _run_http(port):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
-    ap=argparse.ArgumentParser(description="EYNOIX WebSocket + HTTP Server")
+    ap = argparse.ArgumentParser(description="EYNOIX WebSocket + HTTP Server")
     ap.add_argument("--ws-port",   type=int, default=8765)
     ap.add_argument("--http-port", type=int, default=8766)
     ap.add_argument("--camera",    type=int, default=0)
-    ap.add_argument("--dominant",  default="right", choices=["left","right"])
+    ap.add_argument("--dominant",  default="right", choices=["left", "right"])
     ap.add_argument("--width",     type=int, default=640)
     ap.add_argument("--height",    type=int, default=480)
-    args=ap.parse_args()
+    args = ap.parse_args()
+
     global _engine
-    print("="*56)
+    print("=" * 56)
     print("  EYNOIX Server")
     print(f"  WebSocket  →  ws://localhost:{args.ws_port}")
     print(f"  HTTP REST  →  http://localhost:{args.http_port}")
     print(f"  Camera #{args.camera}  |  Dominant: {args.dominant.upper()}")
+    print("  Camera opens ONLY when a live WS client connects.")
     print("  Ctrl+C to stop")
-    print("="*56)
-    _engine=EynoixEngine(cam_idx=args.camera,dominant_side=args.dominant,
-                         width=args.width,height=args.height)
-    _engine.start()
-    ht=threading.Thread(target=_run_http,args=(args.http_port,),daemon=True)
+    print("=" * 56)
+
+    _engine = EynoixEngine(
+        cam_idx=args.camera, dominant_side=args.dominant,
+        width=args.width, height=args.height)
+    _engine.start()   # starts background thread; camera stays closed
+
+    ht = threading.Thread(target=_run_http, args=(args.http_port,), daemon=True)
     ht.start()
     print(f"\n  HTTP  ready on :{args.http_port}")
-    async def _ws():
-        async with websockets.serve(_ws_handler,"0.0.0.0",args.ws_port):
-            print(f"  WS    ready on :{args.ws_port}\n")
-            await asyncio.Future()
-    try: asyncio.run(_ws())
-    except KeyboardInterrupt:
-        print("\n  Shutting down..."); _engine.stop()
 
-if __name__=="__main__":
+    async def _ws():
+        async with websockets.serve(_ws_handler, "0.0.0.0", args.ws_port):
+            print(f"  WS    ready on :{args.ws_port}")
+            print(f"  Camera is CLOSED — connect a WS client to open it.\n")
+            await asyncio.Future()
+
+    try:
+        asyncio.run(_ws())
+    except KeyboardInterrupt:
+        print("\n  Shutting down …")
+        _engine.stop()
+
+if __name__ == "__main__":
     main()
