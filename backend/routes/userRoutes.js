@@ -400,4 +400,67 @@ router.post("/auth/reset-password", async (req, res) => {
     }
 });
 
+// ─── LOGIN USER ────────────────────────────────────────────
+router.post("/login", async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "").trim();
+
+    console.log("LOGIN ATTEMPT:", { email, passwordLength: password.length });
+
+    if (!isValidEmail(email) || !password) {
+        return res.status(400).json({
+            success: false,
+            error: "Email and password are required",
+        });
+    }
+
+    try {
+        const [users] = await db.execute(
+            "SELECT id, name, email, password FROM users WHERE email = ?",
+            [email]
+        );
+
+        console.log("USER QUERY RESULT:", users.length > 0 ? "Found" : "Not found");
+
+        if (users.length === 0) {
+            return res.status(401).json({
+                success: false,
+                error: "Invalid email or password",
+            });
+        }
+
+        const user = users[0];
+        const hashedPassword = hashPassword(password);
+
+        console.log("PASSWORD CHECK:", {
+            provided: hashedPassword.substring(0, 10) + "...",
+            stored: user.password.substring(0, 10) + "...",
+            match: user.password === hashedPassword,
+        });
+
+        if (user.password !== hashedPassword) {
+            return res.status(401).json({
+                success: false,
+                error: "Invalid email or password",
+            });
+        }
+
+        // Login successful
+        console.log("LOGIN SUCCESS:", email);
+        res.json({
+            success: true,
+            message: "Login successful",
+            userId: user.id,
+            userName: user.name,
+            email: user.email,
+        });
+    } catch (err) {
+        console.error("Login error:", err);
+        res.status(500).json({
+            success: false,
+            error: "Login failed. Please try again.",
+        });
+    }
+});
+
 export default router;

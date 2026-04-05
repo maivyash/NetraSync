@@ -127,15 +127,27 @@ export default function Login() {
       const values = await form.validateFields();
       setLoading(true);
 
-      const email = String(values.email || "").trim();
+      const email = String(values.email || "").trim().toLowerCase();
       const password = String(values.password || "").trim();
 
       if (!email || !password) {
         throw new Error("Please enter both email and password.");
       }
 
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Invalid email or password");
+      }
+
       message.success("Login successful. Redirecting to your dashboard...");
-      navigate("/dashboard", { state: { email } });
+      navigate("/dashboard", { state: { userId: data.userId, userName: data.userName } });
     } catch (error) {
       if (error?.errorFields) {
         return;
