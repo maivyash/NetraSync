@@ -207,7 +207,6 @@ export default function Register() {
         password: vals.password,
         age: vals.age,
         eye: vals.eye,
-        phone: vals.phone || null,
         condition: null,
         severity: null,
         photo: capturedPhoto,

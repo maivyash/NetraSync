@@ -56,13 +56,13 @@ async function getUsersTableColumns() {
 // ─── REGISTER USER ──────────────────────────────────────────
 // Inserts into all 3 tables: users, eye_details, photos
 router.post("/register", async (req, res) => {
-    const { name, phone, email, password, age, condition, eye, severity, photo } = req.body;
+    const { name, email, password, age, condition, eye, severity, photo } = req.body;
 
     // Validation
-    if (!name || !age || (!phone && !email)) {
+    if (!name || !age || !email) {
         return res.status(400).json({
             success: false,
-            error: "Name, age, and either phone or email are required fields",
+            error: "Name, age, and email are required fields",
         });
     }
 
@@ -77,10 +77,6 @@ router.post("/register", async (req, res) => {
         const insertCols = ["name", "age"];
         const insertVals = [name, parseInt(age)];
 
-        if (columns.has("phone")) {
-            insertCols.push("phone");
-            insertVals.push(phone || null);
-        }
         if (columns.has("email")) {
             insertCols.push("email");
             insertVals.push(email || null);
@@ -165,7 +161,7 @@ router.get("/users", async (req, res) => {
     try {
         const [users] = await db.execute(`
             SELECT 
-                u.id, u.name, u.phone, u.age, u.created_at,
+                u.id, u.name, u.age, u.created_at,
                 e.condition_type, e.affected_eye, e.severity,
                 p.photo_url
             FROM users u
@@ -186,7 +182,7 @@ router.get("/users/:id", async (req, res) => {
     try {
         const [users] = await db.execute(
             `SELECT 
-                u.id, u.name, u.phone, u.age, u.created_at,
+                u.id, u.name, u.age, u.created_at,
                 e.condition_type, e.affected_eye, e.severity,
                 p.photo_url
             FROM users u
