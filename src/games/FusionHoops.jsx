@@ -37,7 +37,7 @@ const CROWD_ROWS = [
 ];
 const CROWD = CROWD_ROWS.flat();
 
-export default function FusionHoops({ onClose } = {}) {
+export default function FusionHoops({ onClose, gazePosRef } = {}) {
   const navigate = useNavigate();
   const [courtIdx, setCourtIdx] = useState(0);
   const [score, setScore] = useState(0);
@@ -179,8 +179,10 @@ export default function FusionHoops({ onClose } = {}) {
     return () => clearInterval(loop);
   }, [gameStarted, gameOver, courtIdx]);
 
-  /* ---- mouse tracking ---- */
+  /* ---- mouse tracking (only when NOT using pupil control) ---- */
   const handleMouseMove = useCallback((e) => {
+    // When pupil tracking is active, ignore physical mouse
+    if (gazePosRef) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -188,7 +190,26 @@ export default function FusionHoops({ onClose } = {}) {
     const dy = y - (rimPos.y - 5);
     const dist = Math.sqrt(dx * dx + dy * dy);
     mouseInZone.current = dist < court.zone;
-  }, [rimPos, court.zone]);
+  }, [rimPos, court.zone, gazePosRef]);
+
+  /* ---- pupil tracking loop (when gazePosRef is active) ---- */
+  const wrapperRef = useRef(null);
+  useEffect(() => {
+    if (!gazePosRef || !gameStarted || gameOver) return;
+    const iv = setInterval(() => {
+      const el = wrapperRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const gaze = gazePosRef.current;
+      const x = ((gaze.x - rect.left) / rect.width) * 100;
+      const y = ((gaze.y - rect.top) / rect.height) * 100;
+      const dx = x - rimPos.x;
+      const dy = y - (rimPos.y - 5);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      mouseInZone.current = dist < court.zone;
+    }, 30);
+    return () => clearInterval(iv);
+  }, [gazePosRef, gameStarted, gameOver, rimPos, court.zone]);
 
   /* ---- shoot ---- */
   const shoot = () => {
@@ -324,7 +345,9 @@ export default function FusionHoops({ onClose } = {}) {
 
   /* ============ MAIN GAME ============ */
   return (
-    <div className="fh-wrapper" onMouseMove={handleMouseMove} onClick={shoot}>
+    <div className="fh-wrapper" ref={wrapperRef} onMouseMove={handleMouseMove} onClick={shoot}
+      style={gazePosRef ? { cursor: 'none' } : undefined}
+    >
 
       {/* ---- TOP HUD ---- */}
       <div className="fh-hud">

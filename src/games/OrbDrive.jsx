@@ -76,7 +76,7 @@ const formatRaceTime = (seconds) => {
   return `${mm}:${ss}`;
 };
 
-export default function OrbDrive({ onClose, onExit } = {}) {
+export default function OrbDrive({ onClose, onExit, gazePosRef } = {}) {
   const navigate = useNavigate();
 
   const exitToMenu = () => {
@@ -150,6 +150,8 @@ export default function OrbDrive({ onClose, onExit } = {}) {
   })();
 
   const handleMouseMove = (e) => {
+    // When pupil tracking is active, ignore physical mouse movements
+    if (gazePosRef) return;
     if (!orbPanelRef.current) return;
     const rect = orbPanelRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -366,6 +368,18 @@ export default function OrbDrive({ onClose, onExit } = {}) {
       timeRef.current += dt;
       setTime(timeRef.current);
 
+      // ── Pupil tracking: convert viewport pixel gaze to orb-panel % ──
+      if (gazePosRef && orbPanelRef.current) {
+        const rect = orbPanelRef.current.getBoundingClientRect();
+        const gaze = gazePosRef.current;
+        const px = ((gaze.x - rect.left) / rect.width) * 100;
+        const py = ((gaze.y - rect.top) / rect.height) * 100;
+        mouseRef.current = {
+          x: Math.max(0, Math.min(100, px)),
+          y: Math.max(0, Math.min(100, py)),
+        };
+      }
+
       // Reaction variability (gaze jitter) approximation from pointer jitter.
       const dxm = mouseRef.current.x - jitterRef.current.lastX;
       const dym = mouseRef.current.y - jitterRef.current.lastY;
@@ -534,7 +548,7 @@ export default function OrbDrive({ onClose, onExit } = {}) {
   }, [running]);
 
   return (
-    <div className="orbdrive-wrapper">
+    <div className="orbdrive-wrapper" style={gazePosRef ? { cursor: 'none' } : undefined}>
       <button
         className="orbdrive-close-btn"
         onClick={exitToMenu}

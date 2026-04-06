@@ -4,6 +4,7 @@ import axios from "axios";
 import multer from "multer";
 import nodemailer from "nodemailer";
 import { createHash, randomInt } from "crypto";
+import { log } from "console";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -56,13 +57,13 @@ async function getUsersTableColumns() {
 // ─── REGISTER USER ──────────────────────────────────────────
 // Inserts into all 3 tables: users, eye_details, photos
 router.post("/register", async (req, res) => {
-    const { name, phone, email, password, age, condition, eye, severity, photo } = req.body;
+    const { name, email, password, age, condition, eye, severity, photo } = req.body;
 
     // Validation
-    if (!name || !age || (!phone && !email)) {
+    if (!name || !age || !email) {
         return res.status(400).json({
             success: false,
-            error: "Name, age, and either phone or email are required fields",
+            error: "Name, age, and email are required fields",
         });
     }
 
@@ -77,10 +78,6 @@ router.post("/register", async (req, res) => {
         const insertCols = ["name", "age"];
         const insertVals = [name, parseInt(age)];
 
-        if (columns.has("phone")) {
-            insertCols.push("phone");
-            insertVals.push(phone || null);
-        }
         if (columns.has("email")) {
             insertCols.push("email");
             insertVals.push(email || null);
@@ -165,7 +162,7 @@ router.get("/users", async (req, res) => {
     try {
         const [users] = await db.execute(`
             SELECT 
-                u.id, u.name, u.phone, u.age, u.created_at,
+                u.id, u.name, u.age, u.created_at,
                 e.condition_type, e.affected_eye, e.severity,
                 p.photo_url
             FROM users u
@@ -186,7 +183,7 @@ router.get("/users/:id", async (req, res) => {
     try {
         const [users] = await db.execute(
             `SELECT 
-                u.id, u.name, u.phone, u.age, u.created_at,
+                u.id, u.name, u.age, u.created_at,
                 e.condition_type, e.affected_eye, e.severity,
                 p.photo_url
             FROM users u
@@ -257,6 +254,9 @@ router.get("/health", async (req, res) => {
 
 
 router.post("/scanImage", upload.single("photo"), async (req, res) => {
+
+    console.log("Scan Image API Hit");
+
     try {
         if (!req.file) {
             return res.status(400).json({
@@ -410,6 +410,69 @@ router.post("/auth/reset-password", async (req, res) => {
     } catch (err) {
         console.error("Reset password error:", err.message);
         return res.status(500).json({ success: false, error: "Failed to reset password" });
+    }
+});
+
+// ─── LOGIN USER ────────────────────────────────────────────
+router.post("/login", async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "").trim();
+
+    console.log("LOGIN ATTEMPT:", { email, passwordLength: password.length });
+
+    if (!isValidEmail(email) || !password) {
+        return res.status(400).json({
+            success: false,
+            error: "Email and password are required",
+        });
+    }
+
+    try {
+        const [users] = await db.execute(
+            "SELECT id, name, email, password FROM users WHERE email = ?",
+            [email]
+        );
+
+        console.log("USER QUERY RESULT:", users.length > 0 ? "Found" : "Not found");
+
+        if (users.length === 0) {
+            return res.status(401).json({
+                success: false,
+                error: "Invalid email or password",
+            });
+        }
+
+        const user = users[0];
+        const hashedPassword = hashPassword(password);
+
+        console.log("PASSWORD CHECK:", {
+            provided: hashedPassword.substring(0, 10) + "...",
+            stored: user.password.substring(0, 10) + "...",
+            match: user.password === hashedPassword,
+        });
+
+        if (user.password !== hashedPassword) {
+            return res.status(401).json({
+                success: false,
+                error: "Invalid email or password",
+            });
+        }
+
+        // Login successful
+        console.log("LOGIN SUCCESS:", email);
+        res.json({
+            success: true,
+            message: "Login successful",
+            userId: user.id,
+            userName: user.name,
+            email: user.email,
+        });
+    } catch (err) {
+        console.error("Login error:", err);
+        res.status(500).json({
+            success: false,
+            error: "Login failed. Please try again.",
+        });
     }
 });
 

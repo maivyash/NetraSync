@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Progress } from "antd";
 import OrbDrive from "../games/OrbDrive";
 import FusionHoops from "../games/FusionHoops";
+import useEyeCursor from "../hooks/useEyeCursor";
 
 const EYONIX_HTTP = "http://localhost:8766";
 const EYONIX_WS   = "ws://localhost:8765";
@@ -62,6 +63,10 @@ export default function Dashboard() {
   const [eyeCursorActive, setEyeCursorActive] = useState(false);
   const [eyeCursorStatus, setEyeCursorStatus] = useState("idle"); // idle | connecting | active | error
   const wsRef = useRef(null);
+
+  // ── Eye-tracking cursor hook (active only when a game is playing) ──
+  const isGamePlaying = playingGameId === "orb-drive" || playingGameId === "fusion-hoops";
+  const { gazePos, gazePosRef, status: gazeStatus } = useEyeCursor(isGamePlaying);
 
   // ── Enable EYONIX eye-cursor control ───────────────────────────
   const enableEyeCursor = useCallback(async () => {
@@ -517,17 +522,19 @@ export default function Dashboard() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            cursor: "crosshair",
+            cursor: "none",
           }}>
             {/* Eye Tracking Status Badge */}
-            <EyeTrackingBadge status={eyeCursorStatus} />
+            <EyeTrackingBadge status={gazeStatus} />
+            {/* Custom eye-tracking cursor */}
+            {gazeStatus === "active" && <EyeCursorOverlay gazePos={gazePos} />}
             <div style={{
               position: "absolute",
               inset: 0,
               display: "flex",
-              cursor: "crosshair",
+              cursor: "none",
             }}>
-              <OrbDrive onClose={handleCloseGame} />
+              <OrbDrive onClose={handleCloseGame} gazePosRef={gazePosRef} />
             </div>
           </div>
         )}
@@ -543,17 +550,19 @@ export default function Dashboard() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            cursor: "crosshair",
+            cursor: "none",
           }}>
             {/* Eye Tracking Status Badge */}
-            <EyeTrackingBadge status={eyeCursorStatus} />
+            <EyeTrackingBadge status={gazeStatus} />
+            {/* Custom eye-tracking cursor */}
+            {gazeStatus === "active" && <EyeCursorOverlay gazePos={gazePos} />}
             <div style={{
               position: "absolute",
               inset: 0,
               display: "flex",
-              cursor: "crosshair",
+              cursor: "none",
             }}>
-              <FusionHoops onClose={handleCloseGame} />
+              <FusionHoops onClose={handleCloseGame} gazePosRef={gazePosRef} />
             </div>
           </div>
         )}
@@ -567,8 +576,8 @@ export default function Dashboard() {
 function EyeTrackingBadge({ status }) {
   const config = {
     idle:       { text: "EYE CURSOR OFF",      color: "#64748b", bg: "rgba(100,116,139,0.15)", pulse: false },
-    connecting: { text: "CONNECTING...",        color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  pulse: true  },
-    active:     { text: "👁 EYE CURSOR ACTIVE",  color: "#00ff88", bg: "rgba(0,255,136,0.12)",   pulse: true  },
+    connecting: { text: "CONNECTING…",         color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  pulse: true  },
+    active:     { text: "👁 PUPIL CONTROL ON",  color: "#00ff88", bg: "rgba(0,255,136,0.12)",   pulse: true  },
     error:      { text: "⚠ CONNECTION ERROR",   color: "#ef4444", bg: "rgba(239,68,68,0.15)",   pulse: false },
   };
   const c = config[status] || config.idle;
@@ -610,5 +619,99 @@ function EyeTrackingBadge({ status }) {
         }
       `}</style>
     </div>
+  );
+}
+
+// ── Animated Eye Cursor Overlay (replaces native cursor in-game) ──
+function EyeCursorOverlay({ gazePos }) {
+  return (
+    <>
+      {/* Outer glow ring */}
+      <div style={{
+        position: "fixed",
+        left: gazePos.x,
+        top: gazePos.y,
+        width: 48,
+        height: 48,
+        borderRadius: "50%",
+        border: "2px solid rgba(0,245,255,0.5)",
+        transform: "translate(-50%, -50%)",
+        pointerEvents: "none",
+        zIndex: 9999,
+        boxShadow: "0 0 20px rgba(0,245,255,0.3), inset 0 0 10px rgba(0,245,255,0.1)",
+        animation: "eyeCursorPulse 1.5s ease-in-out infinite",
+        transition: "left 0.06s linear, top 0.06s linear",
+      }} />
+      {/* Inner dot */}
+      <div style={{
+        position: "fixed",
+        left: gazePos.x,
+        top: gazePos.y,
+        width: 10,
+        height: 10,
+        borderRadius: "50%",
+        background: "radial-gradient(circle, #00f5ff 0%, #a855f7 100%)",
+        transform: "translate(-50%, -50%)",
+        pointerEvents: "none",
+        zIndex: 10000,
+        boxShadow: "0 0 12px rgba(0,245,255,0.8), 0 0 24px rgba(168,85,247,0.4)",
+        transition: "left 0.06s linear, top 0.06s linear",
+      }} />
+      {/* Crosshair lines */}
+      <div style={{
+        position: "fixed",
+        left: gazePos.x,
+        top: gazePos.y - 20,
+        width: 2,
+        height: 12,
+        background: "rgba(0,245,255,0.6)",
+        transform: "translateX(-50%)",
+        pointerEvents: "none",
+        zIndex: 9999,
+        transition: "left 0.06s linear, top 0.06s linear",
+      }} />
+      <div style={{
+        position: "fixed",
+        left: gazePos.x,
+        top: gazePos.y + 20,
+        width: 2,
+        height: 12,
+        background: "rgba(0,245,255,0.6)",
+        transform: "translateX(-50%)",
+        pointerEvents: "none",
+        zIndex: 9999,
+        transition: "left 0.06s linear, top 0.06s linear",
+      }} />
+      <div style={{
+        position: "fixed",
+        left: gazePos.x - 20,
+        top: gazePos.y,
+        width: 12,
+        height: 2,
+        background: "rgba(0,245,255,0.6)",
+        transform: "translateY(-50%)",
+        pointerEvents: "none",
+        zIndex: 9999,
+        transition: "left 0.06s linear, top 0.06s linear",
+      }} />
+      <div style={{
+        position: "fixed",
+        left: gazePos.x + 20,
+        top: gazePos.y,
+        width: 12,
+        height: 2,
+        background: "rgba(0,245,255,0.6)",
+        transform: "translateY(-50%)",
+        pointerEvents: "none",
+        zIndex: 9999,
+        transition: "left 0.06s linear, top 0.06s linear",
+      }} />
+      <style>{`
+        @keyframes eyeCursorPulse {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+          50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.7; }
+        }
+      `}</style>
+    </>
   );
 }
