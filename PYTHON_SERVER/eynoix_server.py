@@ -4,6 +4,12 @@ EYNOIX Server  —  WebSocket + HTTP REST API
 Wraps eye_tracker.py's exact calculations into a network server.
 Zero changes to any math, thresholds, or detection logic.
 
+FIX (thread-safe asyncio dispatch):
+  asyncio.Queue lives on the event loop thread.
+  Frames are produced by a plain OS thread (_loop).
+  The fix uses loop.call_soon_threadsafe(q.put_nowait, payload)
+  so the event loop is properly woken and _send() coroutines receive frames.
+
 CAMERA LAZY-OPEN BEHAVIOUR
 ───────────────────────────
 The physical camera is NOT opened at startup.
@@ -374,6 +380,10 @@ class EynoixEngine:
         self._prev_t     = time.perf_counter()
         self._subscribers = set()
 
+        # ── FIX: store the asyncio event loop so the OS thread can
+        #         safely schedule puts onto asyncio queues. ──────────
+        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
+
         # Camera state — None until first live subscriber connects
         self.cam: Optional[CameraCapture] = None
         self._cam_lock   = threading.Lock()   # guards open/close of self.cam
@@ -525,6 +535,11 @@ class EynoixEngine:
         """
         Live processing loop.
         Sleeps cheaply when no subscribers (camera is also closed at that point).
+
+        FIX: Uses loop.call_soon_threadsafe() to push payloads into asyncio
+        queues from this OS thread. The old q.put_nowait() call was not
+        thread-safe — it wrote to the queue without waking the event loop,
+        so _send() coroutines waited on q.get() forever.
         """
         while self.running:
             with self._lock:
@@ -549,20 +564,40 @@ class EynoixEngine:
 
             with self._lock:
                 self.latest = payload
+                subscribers = list(self._subscribers)
+                loop = self._event_loop
 
-            for q in list(self._subscribers):
-                try:
-                    q.put_nowait(payload)
-                except Exception:
-                    pass
+            # ── FIX: schedule puts on the event loop thread ──────────────────
+            # loop.call_soon_threadsafe is the ONLY safe way to push data from
+            # an OS thread into asyncio queues. The old q.put_nowait() called
+            # directly from here silently wrote memory without waking the event
+            # loop, so await q.get() in _send() would block forever.
+            if loop is not None and loop.is_running():
+                for q in subscribers:
+                    try:
+                        loop.call_soon_threadsafe(q.put_nowait, payload)
+                    except Exception:
+                        pass
+            else:
+                # Fallback: no event loop yet (shouldn't happen in normal use)
+                for q in subscribers:
+                    try:
+                        q.put_nowait(payload)
+                    except Exception:
+                        pass
 
     # ── Subscriber management (controls camera lifecycle) ─────────────────────
 
-    def subscribe(self, q):
+    def subscribe(self, q, loop: asyncio.AbstractEventLoop):
+        """
+        Register a subscriber queue.
+
+        FIX: accepts the event loop so _loop() can use call_soon_threadsafe.
+        """
         with self._lock:
             self._subscribers.add(q)
             self._live_count = len(self._subscribers)
-        # Camera will be opened lazily by _loop on next iteration
+            self._event_loop = loop   # store/refresh the running loop reference
 
     def unsubscribe(self, q):
         with self._lock:
@@ -769,10 +804,13 @@ def _dispatch(cmd: dict) -> dict:
 
 
 async def _ws_handler(websocket):
-    q = asyncio.Queue(maxsize=8)
-    _engine.subscribe(q)
-    print(f"  [WS] + {websocket.remote_address}  (camera will open if not already)")
+    q    = asyncio.Queue(maxsize=8)
     loop = asyncio.get_event_loop()
+
+    # ── FIX: pass the running event loop into subscribe() so _loop() can
+    #         use loop.call_soon_threadsafe to push frames onto this queue.
+    _engine.subscribe(q, loop)
+    print(f"  [WS] + {websocket.remote_address}  (camera will open if not already)")
 
     async def _send():
         while True:

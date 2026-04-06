@@ -15,6 +15,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 const EYONIX_WS = "ws://localhost:8765";
 
 export default function useEyeCursor(active = false) {
+
+
+
+
   const [gazePos, setGazePos] = useState({ x: 0, y: 0 });
   const [status, setStatus] = useState("idle"); // idle | connecting | active | error
   const wsRef = useRef(null);
@@ -87,6 +91,8 @@ export default function useEyeCursor(active = false) {
       ws.onmessage = (evt) => {
         if (cancelled) return;
         try {
+          console.log(evt.data);
+
           const data = JSON.parse(evt.data);
 
           // Only process live camera frames where a face was detected
