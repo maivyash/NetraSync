@@ -20,65 +20,11 @@ export default function Register() {
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const classifyScore = useCallback((score) => {
-    if (score >= 85) return { label: "Excellent", color: "#00ff88" };
-    if (score >= 70) return { label: "Good", color: "#00f5ff" };
-    if (score >= 55) return { label: "Fair", color: "#f59e0b" };
-    return { label: "Low", color: "#ff6b35" };
-  }, []);
-
-  const calculateAlignmentScore = useCallback((dataUrl) => {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        if (!context) {
-          reject(new Error("Unable to score image"));
-          return;
-        }
-
-        const width = 220;
-        const height = 160;
-        canvas.width = width;
-        canvas.height = height;
-        context.drawImage(image, 0, 0, width, height);
-
-        const pixels = context.getImageData(0, 0, width, height).data;
-        let leftLum = 0;
-        let rightLum = 0;
-        let totalLum = 0;
-        let count = 0;
-
-        for (let y = 0; y < height; y += 4) {
-          for (let x = 0; x < width; x += 4) {
-            const index = (y * width + x) * 4;
-            const r = pixels[index];
-            const g = pixels[index + 1];
-            const b = pixels[index + 2];
-            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            totalLum += lum;
-            count += 1;
-            if (x < width / 2) {
-              leftLum += lum;
-            } else {
-              rightLum += lum;
-            }
-          }
-        }
-
-        const avgLum = totalLum / Math.max(count, 1);
-        const symmetryGap = Math.abs(leftLum - rightLum) / Math.max(leftLum + rightLum, 1);
-        const exposurePenalty = Math.abs(avgLum - 125) / 125;
-
-        const symmetryComponent = Math.max(0, 1 - symmetryGap) * 75;
-        const exposureComponent = Math.max(0, 1 - exposurePenalty) * 25;
-        const finalScore = Math.round(Math.min(100, Math.max(0, symmetryComponent + exposureComponent)));
-        resolve(finalScore);
-      };
-      image.onerror = () => reject(new Error("Invalid image selected"));
-      image.src = dataUrl;
-    });
+  const classifyScore = useCallback((pct) => {
+    if (pct < 15) return { label: "Excellent — Well Aligned", color: "#00ff88" };
+    if (pct < 40) return { label: "Mild Misalignment", color: "#00f5ff" };
+    if (pct < 70) return { label: "Moderate Misalignment", color: "#f59e0b" };
+    return { label: "Severe Misalignment", color: "#ff6b35" };
   }, []);
 
   const processCapturedImage = useCallback(
@@ -87,10 +33,42 @@ export default function Register() {
         setScoring(true);
         setCapturedPhoto(dataUrl);
         setPhotoMode(mode);
-        const score = await calculateAlignmentScore(dataUrl);
-        const status = classifyScore(score);
-        setAlignmentScore(score);
-        setScoreStatus(status);
+
+        // Get selected dominant eye from form (default: right)
+        const dominantEye = form.getFieldValue("eye") || "right";
+
+        // Convert dataUrl → Blob for multipart upload
+        const response = await fetch(dataUrl);
+        const blob = await response.blob();
+
+        const formData = new FormData();
+        formData.append("photo", blob, "eye_capture.jpg");
+        formData.append("dominant", dominantEye);
+
+        const scanRes = await fetch("/api/scanImage", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await scanRes.json();
+
+        if (!scanRes.ok || !data.success) {
+          throw new Error(data.error || "AI scan failed");
+        }
+
+        if (!data.faceDetected) {
+          throw new Error("No face detected. Please take a clearer photo facing the camera.");
+        }
+
+        const pct = data.alignment ?? 0;
+        const status = classifyScore(pct);
+        setAlignmentScore(pct);
+        setScoreStatus({
+          ...status,
+          severity: data.severity,
+          direction: data.direction,
+          strabismus: data.strabismus,
+        });
       } catch (error) {
         setCapturedPhoto(null);
         setAlignmentScore(null);
@@ -100,7 +78,7 @@ export default function Register() {
         setScoring(false);
       }
     },
-    [calculateAlignmentScore, classifyScore]
+    [classifyScore, form]
   );
 
   const stopCamera = useCallback(() => {
@@ -532,16 +510,17 @@ export default function Register() {
 
                 <div
                   style={{
-                    border: "1px solid rgba(0,245,255,0.2)",
+                    border: `1px solid ${scoreStatus?.color || "rgba(0,245,255,0.2)"}33`,
                     borderRadius: 10,
-                    padding: "12px 14px",
+                    padding: "14px 16px",
                     background: "rgba(0,245,255,0.05)",
                     marginBottom: 10,
                   }}
                 >
+                  {/* Header row: label + percentage */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                     <span style={{ fontFamily: "var(--font-heading)", color: "#00f5ff", fontSize: "0.74rem", letterSpacing: 1.2 }}>
-                      Alignment Score
+                      AI EYE ALIGNMENT
                     </span>
                     <span
                       style={{
@@ -551,14 +530,59 @@ export default function Register() {
                         letterSpacing: 0.8,
                       }}
                     >
-                      {scoring ? "Calculating..." : `${alignmentScore ?? "--"} / 100`}
+                      {scoring ? "Analyzing..." : `${alignmentScore != null ? alignmentScore.toFixed(1) : "--"}%`}
                     </span>
                   </div>
-                  <div style={{ marginTop: 8, color: "var(--text-secondary)", fontSize: "0.83rem" }}>
-                    {scoring
-                      ? "Please wait while we analyze your uploaded image alignment."
-                      : `Quality: ${scoreStatus?.label || "Pending"}. Retake if you want a better score, then register when satisfied.`}
-                  </div>
+
+                  {scoring ? (
+                    <div style={{ marginTop: 10, color: "var(--text-secondary)", fontSize: "0.83rem" }}>
+                      Please wait — EYONIX AI is analyzing your photo for eye alignment...
+                    </div>
+                  ) : scoreStatus ? (
+                    <div style={{ marginTop: 10 }}>
+                      {/* Severity badge */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "3px 10px",
+                            borderRadius: 6,
+                            fontSize: "0.68rem",
+                            fontFamily: "var(--font-heading)",
+                            letterSpacing: 1,
+                            background: `${scoreStatus.color}22`,
+                            color: scoreStatus.color,
+                            border: `1px solid ${scoreStatus.color}44`,
+                          }}
+                        >
+                          {scoreStatus.severity || "OK"}
+                        </span>
+                        <span style={{ color: "var(--text-secondary)", fontSize: "0.82rem" }}>
+                          {scoreStatus.label}
+                        </span>
+                      </div>
+
+                      {/* Direction */}
+                      {scoreStatus.direction && scoreStatus.direction !== "Aligned" && (
+                        <div style={{ fontSize: "0.78rem", color: "#a0b4c8", marginBottom: 4 }}>
+                          <span style={{ color: "#00f5ff", fontFamily: "var(--font-heading)", fontSize: "0.68rem", marginRight: 6 }}>DIRECTION</span>
+                          {scoreStatus.direction}
+                        </div>
+                      )}
+
+                      {/* Strabismus */}
+                      {scoreStatus.strabismus && scoreStatus.strabismus !== "None" && (
+                        <div style={{ fontSize: "0.78rem", color: "#a0b4c8", marginBottom: 4 }}>
+                          <span style={{ color: "#a855f7", fontFamily: "var(--font-heading)", fontSize: "0.68rem", marginRight: 6 }}>TYPE</span>
+                          {scoreStatus.strabismus}
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: 6, color: "var(--text-secondary)", fontSize: "0.78rem", opacity: 0.8 }}>
+                        Retake photo for a new scan, or register when satisfied.
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <button

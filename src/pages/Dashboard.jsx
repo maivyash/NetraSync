@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Progress } from "antd";
 import OrbDrive from "../games/OrbDrive";
 import FusionHoops from "../games/FusionHoops";
+
+const EYONIX_HTTP = "http://localhost:8766";
+const EYONIX_WS   = "ws://localhost:8765";
 
 const games = [
   {
@@ -56,17 +59,106 @@ export default function Dashboard() {
   const [activeGame, setActiveGame] = useState(null);
   const [hoveredGame, setHoveredGame] = useState(null);
   const [playingGameId, setPlayingGameId] = useState(null);
+  const [eyeCursorActive, setEyeCursorActive] = useState(false);
+  const [eyeCursorStatus, setEyeCursorStatus] = useState("idle"); // idle | connecting | active | error
+  const wsRef = useRef(null);
 
-  const handlePlayGame = (gameId) => {
+  // ── Enable EYONIX eye-cursor control ───────────────────────────
+  const enableEyeCursor = useCallback(async () => {
+    try {
+      setEyeCursorStatus("connecting");
+
+      // 1. Open a WebSocket to trigger camera open (server needs a subscriber)
+      const ws = new WebSocket(EYONIX_WS);
+      wsRef.current = ws;
+
+      ws.onopen = async () => {
+        console.log("[EYONIX] WebSocket connected — camera opening…");
+        // Give the camera a moment to warm up, then enable cursor
+        setTimeout(async () => {
+          try {
+            const res = await fetch(`${EYONIX_HTTP}/cursor/enable`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ speed: 22.0 }),
+            });
+            const data = await res.json();
+            if (data.ok || data.cursor_active) {
+              setEyeCursorActive(true);
+              setEyeCursorStatus("active");
+              console.log("[EYONIX] Eye cursor ENABLED", data);
+            } else {
+              setEyeCursorStatus("error");
+              console.warn("[EYONIX] Cursor enable response:", data);
+            }
+          } catch (err) {
+            console.error("[EYONIX] Cursor enable failed:", err);
+            setEyeCursorStatus("error");
+          }
+        }, 800);
+      };
+
+      ws.onerror = () => {
+        console.error("[EYONIX] WebSocket error — is the Python server running?");
+        setEyeCursorStatus("error");
+      };
+
+      ws.onclose = () => {
+        console.log("[EYONIX] WebSocket closed");
+      };
+
+      // Silently consume incoming frames (we just need the subscription open)
+      ws.onmessage = () => {};
+    } catch (err) {
+      console.error("[EYONIX] Enable eye cursor failed:", err);
+      setEyeCursorStatus("error");
+    }
+  }, []);
+
+  // ── Disable EYONIX eye-cursor control ──────────────────────────
+  const disableEyeCursor = useCallback(async () => {
+    try {
+      await fetch(`${EYONIX_HTTP}/cursor/disable`, { method: "POST" });
+      console.log("[EYONIX] Eye cursor DISABLED");
+    } catch (err) {
+      console.warn("[EYONIX] Cursor disable failed:", err);
+    }
+
+    // Close the WebSocket (releases camera on server side)
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    setEyeCursorActive(false);
+    setEyeCursorStatus("idle");
+  }, []);
+
+  // ── Cleanup on unmount ─────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      // Safety: always disable cursor when leaving the dashboard
+      if (wsRef.current) {
+        fetch(`${EYONIX_HTTP}/cursor/disable`, { method: "POST" }).catch(() => {});
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, []);
+
+  const handlePlayGame = async (gameId) => {
     if (gameId === "orb-drive" || gameId === "fusion-hoops") {
       setPlayingGameId(gameId);
+      // Enable ML-driven eye cursor when game starts
+      await enableEyeCursor();
     } else {
-      // For other games, show a message or implement later
       alert(`${gameId} game coming soon!`);
     }
   };
 
-  const handleCloseGame = () => {
+  const handleCloseGame = async () => {
+    // Disable ML-driven eye cursor when game closes
+    await disableEyeCursor();
     setPlayingGameId(null);
   };
 
@@ -414,7 +506,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Game Modal */}
+        {/* Game Modal — Orb Drive */}
         {playingGameId === "orb-drive" && (
           <div style={{
             position: "fixed",
@@ -425,18 +517,22 @@ export default function Dashboard() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            cursor: "crosshair",
           }}>
+            {/* Eye Tracking Status Badge */}
+            <EyeTrackingBadge status={eyeCursorStatus} />
             <div style={{
               position: "absolute",
               inset: 0,
               display: "flex",
+              cursor: "crosshair",
             }}>
               <OrbDrive onClose={handleCloseGame} />
             </div>
           </div>
         )}
 
-        {/* Fusion Hoops Modal */}
+        {/* Game Modal — Fusion Hoops */}
         {playingGameId === "fusion-hoops" && (
           <div style={{
             position: "fixed",
@@ -447,11 +543,15 @@ export default function Dashboard() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            cursor: "crosshair",
           }}>
+            {/* Eye Tracking Status Badge */}
+            <EyeTrackingBadge status={eyeCursorStatus} />
             <div style={{
               position: "absolute",
               inset: 0,
               display: "flex",
+              cursor: "crosshair",
             }}>
               <FusionHoops onClose={handleCloseGame} />
             </div>
@@ -459,6 +559,56 @@ export default function Dashboard() {
         )}
 
       </div>
+    </div>
+  );
+}
+
+// ── Eye Tracking Status Badge (shown in game overlays) ──────────
+function EyeTrackingBadge({ status }) {
+  const config = {
+    idle:       { text: "EYE CURSOR OFF",      color: "#64748b", bg: "rgba(100,116,139,0.15)", pulse: false },
+    connecting: { text: "CONNECTING...",        color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  pulse: true  },
+    active:     { text: "👁 EYE CURSOR ACTIVE",  color: "#00ff88", bg: "rgba(0,255,136,0.12)",   pulse: true  },
+    error:      { text: "⚠ CONNECTION ERROR",   color: "#ef4444", bg: "rgba(239,68,68,0.15)",   pulse: false },
+  };
+  const c = config[status] || config.idle;
+
+  return (
+    <div style={{
+      position: "fixed",
+      top: 14,
+      right: 14,
+      zIndex: 2100,
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "6px 14px",
+      borderRadius: 20,
+      background: c.bg,
+      border: `1px solid ${c.color}44`,
+      backdropFilter: "blur(8px)",
+      pointerEvents: "none",
+      animation: c.pulse ? "eyeBadgePulse 2s ease-in-out infinite" : "none",
+    }}>
+      <div style={{
+        width: 8, height: 8, borderRadius: "50%",
+        background: c.color,
+        boxShadow: `0 0 6px ${c.color}80`,
+      }} />
+      <span style={{
+        fontFamily: "var(--font-heading)",
+        fontSize: "0.65rem",
+        letterSpacing: 1.2,
+        color: c.color,
+      }}>{c.text}</span>
+
+      {/* Inline keyframe for pulse animation */}
+      <style>{`
+        @keyframes eyeBadgePulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+      `}</style>
     </div>
   );
 }

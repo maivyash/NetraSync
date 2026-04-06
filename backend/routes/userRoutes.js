@@ -265,17 +265,17 @@ router.post("/scanImage", upload.single("photo"), async (req, res) => {
             });
         }
 
-        console.log("FILE:", req.file);
-        console.log("BODY:", req.body);
+        const dominantEye = req.body.dominant || "right";
+        console.log("FILE:", req.file.originalname, "| Dominant:", dominantEye);
 
         // ✅ Convert image buffer → base64
         const base64 = req.file.buffer.toString("base64");
-        // Call Python AI server
+        // Call Python AI server with the user's dominant eye
         const response = await axios.post(
             "http://localhost:8766/analyze_image",
             {
                 image_base64: base64,
-                dominant: "right"
+                dominant: dominantEye
             }
         );
 
@@ -283,16 +283,25 @@ router.post("/scanImage", upload.single("photo"), async (req, res) => {
 
         console.log("AI DATA:", aiData);
 
-        // Extract alignment
-        const alignment = aiData?.misalignment?.percentage || 0;
+        // Extract alignment details
+        const alignment = aiData?.misalignment?.percentage ?? 0;
         const severity = aiData?.misalignment?.severity || "unknown";
+        const direction = aiData?.misalignment?.direction || "Aligned";
+        const strabismus = aiData?.misalignment?.strabismus || "None";
 
         // ✅ Final clean response
         res.json({
             success: true,
-            alignment,
+            alignment: Math.round(alignment * 100) / 100,
             severity,
-            aiData
+            direction,
+            strabismus,
+            dominantSide: aiData?.dominant_side || dominantEye,
+            faceDetected: aiData?.face_detected ?? false,
+            misalignment: aiData?.misalignment || null,
+            headPose: aiData?.head_pose || null,
+            leftEye: aiData?.left_eye || null,
+            rightEye: aiData?.right_eye || null,
         });
 
     } catch (err) {

@@ -865,6 +865,7 @@ class RESTHandler(BaseHTTPRequestHandler):
             _json(self, _engine.disable_cursor())
         elif path == "/analyze_image":
             if "dominant" in body:
+                print(f"  [DOM] Setting dominant eye to: {body['dominant']}")
                 _engine.set_dominant(body["dominant"])
             raw = body.get("image_base64", "")
             try:
