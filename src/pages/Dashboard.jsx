@@ -1,11 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState } from "react";
 import { Progress } from "antd";
 import OrbDrive from "../games/OrbDrive";
 import FusionHoops from "../games/FusionHoops";
 import useEyeCursor from "../hooks/useEyeCursor";
-
-const EYONIX_HTTP = "http://localhost:8766";
-const EYONIX_WS   = "ws://localhost:8765";
 
 const games = [
   {
@@ -60,111 +57,26 @@ export default function Dashboard() {
   const [activeGame, setActiveGame] = useState(null);
   const [hoveredGame, setHoveredGame] = useState(null);
   const [playingGameId, setPlayingGameId] = useState(null);
-  const [eyeCursorActive, setEyeCursorActive] = useState(false);
-  const [eyeCursorStatus, setEyeCursorStatus] = useState("idle"); // idle | connecting | active | error
-  const wsRef = useRef(null);
 
-  // ── Eye-tracking cursor hook (active only when a game is playing) ──
+  // ── Eye-tracking (single source of truth) ──────────────────────
+  // Hook auto-connects WebSocket when a game is playing, auto-disconnects when not.
+  // The WebSocket subscription triggers the EYONIX server to open the camera.
   const isGamePlaying = playingGameId === "orb-drive" || playingGameId === "fusion-hoops";
   const { gazePos, gazePosRef, status: gazeStatus } = useEyeCursor(isGamePlaying);
 
-  // ── Enable EYONIX eye-cursor control ───────────────────────────
-  const enableEyeCursor = useCallback(async () => {
-    try {
-      setEyeCursorStatus("connecting");
-
-      // 1. Open a WebSocket to trigger camera open (server needs a subscriber)
-      const ws = new WebSocket(EYONIX_WS);
-      wsRef.current = ws;
-
-      ws.onopen = async () => {
-        console.log("[EYONIX] WebSocket connected — camera opening…");
-        // Give the camera a moment to warm up, then enable cursor
-        setTimeout(async () => {
-          try {
-            const res = await fetch(`${EYONIX_HTTP}/cursor/enable`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ speed: 22.0 }),
-            });
-            const data = await res.json();
-            if (data.ok || data.cursor_active) {
-              setEyeCursorActive(true);
-              setEyeCursorStatus("active");
-              console.log("[EYONIX] Eye cursor ENABLED", data);
-            } else {
-              setEyeCursorStatus("error");
-              console.warn("[EYONIX] Cursor enable response:", data);
-            }
-          } catch (err) {
-            console.error("[EYONIX] Cursor enable failed:", err);
-            setEyeCursorStatus("error");
-          }
-        }, 800);
-      };
-
-      ws.onerror = () => {
-        console.error("[EYONIX] WebSocket error — is the Python server running?");
-        setEyeCursorStatus("error");
-      };
-
-      ws.onclose = () => {
-        console.log("[EYONIX] WebSocket closed");
-      };
-
-      // Silently consume incoming frames (we just need the subscription open)
-      ws.onmessage = () => {};
-    } catch (err) {
-      console.error("[EYONIX] Enable eye cursor failed:", err);
-      setEyeCursorStatus("error");
-    }
-  }, []);
-
-  // ── Disable EYONIX eye-cursor control ──────────────────────────
-  const disableEyeCursor = useCallback(async () => {
-    try {
-      await fetch(`${EYONIX_HTTP}/cursor/disable`, { method: "POST" });
-      console.log("[EYONIX] Eye cursor DISABLED");
-    } catch (err) {
-      console.warn("[EYONIX] Cursor disable failed:", err);
-    }
-
-    // Close the WebSocket (releases camera on server side)
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-
-    setEyeCursorActive(false);
-    setEyeCursorStatus("idle");
-  }, []);
-
-  // ── Cleanup on unmount ─────────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      // Safety: always disable cursor when leaving the dashboard
-      if (wsRef.current) {
-        fetch(`${EYONIX_HTTP}/cursor/disable`, { method: "POST" }).catch(() => {});
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, []);
-
-  const handlePlayGame = async (gameId) => {
+  // ── Game launch / close ────────────────────────────────────────
+  const handlePlayGame = (gameId) => {
     if (gameId === "orb-drive" || gameId === "fusion-hoops") {
       setPlayingGameId(gameId);
-      // Enable ML-driven eye cursor when game starts
-      await enableEyeCursor();
+      // The useEyeCursor hook will automatically open the WebSocket + camera
     } else {
       alert(`${gameId} game coming soon!`);
     }
   };
 
-  const handleCloseGame = async () => {
-    // Disable ML-driven eye cursor when game closes
-    await disableEyeCursor();
+  const handleCloseGame = () => {
     setPlayingGameId(null);
+    // The useEyeCursor hook will automatically close WebSocket + release camera
   };
 
   return (
@@ -383,7 +295,7 @@ export default function Dashboard() {
                       fontFamily: "var(--font-heading)", fontSize: "0.7rem", letterSpacing: 1,
                       fontWeight: 700, transition: "all 0.3s",
                     }}
-                    onClick={() => handlePlayGame(g.id)}
+                    onClick={(e) => { e.stopPropagation(); handlePlayGame(g.id); }}
                     >
                       {activeGame === g.id ? "⏸ PAUSE" : "▶ PLAY"}
                     </button>

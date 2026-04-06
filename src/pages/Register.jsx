@@ -45,6 +45,7 @@ export default function Register() {
         formData.append("photo", blob, "eye_capture.jpg");
         formData.append("dominant", dominantEye);
 
+
         const scanRes = await fetch("/api/scanImage", {
           method: "POST",
           body: formData,
@@ -209,7 +210,7 @@ export default function Register() {
       });
 
       setTimeout(() => {
-        navigate("/dashboard", { state: { userId: data.userId, userName: vals.name } });
+        navigate("/dashboard", { state: { userId: data.userId, userName: vals.name }, replace: true });
       }, 1200);
     } catch (err) {
       if (err?.errorFields) {
@@ -626,7 +627,7 @@ export default function Register() {
             Already registered?{" "}
             <button
               type="button"
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/login", { replace: true })}
               style={{
                 background: "transparent",
                 border: "none",

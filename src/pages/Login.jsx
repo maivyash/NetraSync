@@ -147,7 +147,7 @@ export default function Login() {
       }
 
       message.success("Login successful. Redirecting to your dashboard...");
-      navigate("/dashboard", { state: { userId: data.userId, userName: data.userName } });
+      navigate("/dashboard", { state: { userId: data.userId, userName: data.userName }, replace: true });
     } catch (error) {
       if (error?.errorFields) {
         return;
