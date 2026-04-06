@@ -76,7 +76,7 @@ const formatRaceTime = (seconds) => {
   return `${mm}:${ss}`;
 };
 
-export default function OrbDrive({ onClose, onExit, gazePosRef } = {}) {
+export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange } = {}) {
   const navigate = useNavigate();
 
   const exitToMenu = () => {
@@ -150,8 +150,8 @@ export default function OrbDrive({ onClose, onExit, gazePosRef } = {}) {
   })();
 
   const handleMouseMove = (e) => {
-    // When pupil tracking is active, ignore physical mouse movements
-    if (gazePosRef) return;
+    // Block physical mouse ONLY during active gameplay when pupil tracking is on
+    if (gazePosRef && running) return;
     if (!orbPanelRef.current) return;
     const rect = orbPanelRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -165,6 +165,7 @@ export default function OrbDrive({ onClose, onExit, gazePosRef } = {}) {
   const startGame = () => {
     setRunning(true);
     setPhase("running");
+    if (onRunningChange) onRunningChange(true);
     setProgress(0);
     setTime(0);
     setAlignment(0);
@@ -204,6 +205,7 @@ export default function OrbDrive({ onClose, onExit, gazePosRef } = {}) {
     stopWind();
     setRunning(false);
     setPhase("idle");
+    if (onRunningChange) onRunningChange(false);
     setCountdown(null);
     setResetting(true);
     setResultOpen(false);
@@ -271,6 +273,7 @@ export default function OrbDrive({ onClose, onExit, gazePosRef } = {}) {
 
     setRunning(false);
     setPhase("result");
+    if (onRunningChange) onRunningChange(false);
 
     const count = Math.max(1, raceStatsRef.current.count);
     const avgAlign = raceStatsRef.current.sumAlign / count;
@@ -548,7 +551,7 @@ export default function OrbDrive({ onClose, onExit, gazePosRef } = {}) {
   }, [running]);
 
   return (
-    <div className="orbdrive-wrapper" style={gazePosRef ? { cursor: 'none' } : undefined}>
+    <div className="orbdrive-wrapper" style={gazePosRef && running ? { cursor: 'none' } : undefined}>
       <button
         className="orbdrive-close-btn"
         onClick={exitToMenu}

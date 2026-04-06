@@ -37,7 +37,7 @@ const CROWD_ROWS = [
 ];
 const CROWD = CROWD_ROWS.flat();
 
-export default function FusionHoops({ onClose, gazePosRef } = {}) {
+export default function FusionHoops({ onClose, gazePosRef, onRunningChange } = {}) {
   const navigate = useNavigate();
   const [courtIdx, setCourtIdx] = useState(0);
   const [score, setScore] = useState(0);
@@ -76,6 +76,7 @@ export default function FusionHoops({ onClose, gazePosRef } = {}) {
 
   const startGame = () => {
     setGameStarted(true);
+    if (onRunningChange) onRunningChange(true);
     setScore(0);
     setTimeLeft(GAME_TIME);
     setMade(0);
@@ -98,9 +99,10 @@ export default function FusionHoops({ onClose, gazePosRef } = {}) {
 
   const exitToMenu = useCallback(() => {
     stopCrowdAmbience();
+    if (onRunningChange) onRunningChange(false);
     if (onClose) onClose();
     else navigate("/dashboard", { replace: true });
-  }, [onClose, navigate]);
+  }, [onClose, navigate, onRunningChange]);
 
   /* ---- stop ambience on unmount ---- */
   useEffect(() => {
@@ -110,11 +112,12 @@ export default function FusionHoops({ onClose, gazePosRef } = {}) {
   /* ---- end-of-game popup phase ---- */
   useEffect(() => {
     if (!gameOver) return;
+    if (onRunningChange) onRunningChange(false);
     playBuzzer();
     setEndPhase("celebrate");
     const t = setTimeout(() => setEndPhase("results"), 1200);
     return () => clearTimeout(t);
-  }, [gameOver]);
+  }, [gameOver, onRunningChange]);
 
   /* ---- timer ---- */
   useEffect(() => {
@@ -181,8 +184,8 @@ export default function FusionHoops({ onClose, gazePosRef } = {}) {
 
   /* ---- mouse tracking (only when NOT using pupil control) ---- */
   const handleMouseMove = useCallback((e) => {
-    // When pupil tracking is active, ignore physical mouse
-    if (gazePosRef) return;
+    // Block physical mouse ONLY during active gameplay when pupil tracking is on
+    if (gazePosRef && gameStarted && !gameOver) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -190,7 +193,7 @@ export default function FusionHoops({ onClose, gazePosRef } = {}) {
     const dy = y - (rimPos.y - 5);
     const dist = Math.sqrt(dx * dx + dy * dy);
     mouseInZone.current = dist < court.zone;
-  }, [rimPos, court.zone, gazePosRef]);
+  }, [rimPos, court.zone, gazePosRef, gameStarted, gameOver]);
 
   /* ---- pupil tracking loop (when gazePosRef is active) ---- */
   const wrapperRef = useRef(null);
@@ -346,7 +349,7 @@ export default function FusionHoops({ onClose, gazePosRef } = {}) {
   /* ============ MAIN GAME ============ */
   return (
     <div className="fh-wrapper" ref={wrapperRef} onMouseMove={handleMouseMove} onClick={shoot}
-      style={gazePosRef ? { cursor: 'none' } : undefined}
+      style={gazePosRef && gameStarted && !gameOver ? { cursor: 'none' } : undefined}
     >
 
       {/* ---- TOP HUD ---- */}

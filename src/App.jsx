@@ -4,6 +4,8 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import PlayOrbDrive from "./pages/PlayOrbDrive";
+import PlayFusionHoops from "./pages/PlayFusionHoops";
 import "./App.css";
 
 function App() {
@@ -30,6 +32,8 @@ function App() {
           <Route path="/relogin" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/play/orb-drive" element={<PlayOrbDrive />} />
+          <Route path="/play/fusion-hoops" element={<PlayFusionHoops />} />
           <Route path="/teen" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
