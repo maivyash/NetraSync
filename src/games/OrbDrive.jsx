@@ -18,6 +18,7 @@ import {
   resetGears,
   stopAll,
 } from "./orbDriveAudio";
+import { recordDailyPracticeScore } from "../utils/weeklyProgress";
 
 const BASE_SPEED = 60;
 const MAX_SPEED = 220;
@@ -279,6 +280,12 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
     const bonusPct = Math.max(0, Math.min(20, Math.round(avgFs * 20)));
     const maxSpd = Math.round(raceStatsRef.current.maxSpeed);
     const raceTimeSec = timeRef.current;
+    const practiceScore = Math.round(
+      Math.max(
+        0,
+        Math.min(100, avgAlign * 0.65 + bonusPct * 1.2 + (maxSpd / MAX_SPEED) * 35)
+      )
+    );
 
     const bestKey = `orbdrive_best_${modeKey}`;
     const prevBest = Number.parseFloat(window.localStorage.getItem(bestKey) ?? "");
@@ -287,6 +294,12 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
         ? Math.min(prevBest, raceTimeSec)
         : raceTimeSec;
     window.localStorage.setItem(bestKey, String(bestTimeSec));
+
+    recordDailyPracticeScore({
+      userId: window.localStorage.getItem("userId"),
+      gameId: "orb-drive",
+      score: practiceScore,
+    });
 
     setRaceResult({
       raceTimeSec,
@@ -697,6 +710,26 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
               <span className="od-hud-lbl">PROGRESS</span>
               <span className="od-hud-num">{Math.round(progress * 100)}%</span>
             </div>
+            <div className="od-hud-cell">
+              <span className="od-hud-lbl">ALIGNMENT</span>
+              <span className="od-hud-num">{Math.round(alignment)}%</span>
+            </div>
+            <div className="od-hud-cell">
+              <span className="od-hud-lbl">FOCUS</span>
+              <span className="od-hud-num">{(focusStrength * 100).toFixed(0)}%</span>
+            </div>
+            <div className="od-hud-cell od-hud-cell--lock">
+              <span className="od-hud-lbl">FOCUS LOCK</span>
+              <div className="od-hud-lockWrap">
+                <div className="od-gauge-track">
+                  <div
+                    className={"od-gauge-fill" + (canDrive ? " od-gauge-fill--full" : "")}
+                    style={{ width: `${holdPct * 100}%` }}
+                  />
+                </div>
+                <span className="od-hud-lockNum">{Math.round(holdPct * 100)}%</span>
+              </div>
+            </div>
           </div>
 
           <div
@@ -834,34 +867,6 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
               </div>
             </div>
           </div>
-
-          {/* ── Dashboard Bottom Bar ── */}
-          <div className="od-dashboard">
-            <div className="od-dash-cell">
-              <span className="od-dash-icon">🎯</span>
-              <div className="od-dash-info">
-                <span className="od-dash-lbl">ALIGNMENT</span>
-                <span className="od-dash-val">{Math.round(alignment)}%</span>
-              </div>
-            </div>
-            <div className="od-dash-cell">
-              <span className="od-dash-icon">🔥</span>
-              <div className="od-dash-info">
-                <span className="od-dash-lbl">FOCUS</span>
-                <span className="od-dash-val">{(focusStrength * 100).toFixed(0)}%</span>
-              </div>
-            </div>
-            <div className="od-dash-cell od-dash-cell--gauge">
-              <span className="od-dash-gauge-lbl">FOCUS LOCK</span>
-              <div className="od-gauge-track">
-                <div
-                  className={"od-gauge-fill" + (canDrive ? " od-gauge-fill--full" : "")}
-                  style={{ width: `${holdPct * 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
           {!canDrive && (
             <div className="orbdrive-holdHint">
               Hold focus for {mode.holdSeconds.toFixed(1)}s to unlock full speed

@@ -8,9 +8,19 @@
  *   onToggle   – called when card body is clicked (toggles active)
  *   onHover    – called onMouseEnter
  *   onLeave    – called onMouseLeave
+ *   onInstructions – called when Instructions button is clicked
  *   onPlay     – called when the PLAY button is clicked
  */
-export default function GameCard({ game: g, isActive, isHovered, onToggle, onHover, onLeave, onPlay }) {
+export default function GameCard({
+  game: g,
+  isActive,
+  isHovered,
+  onToggle,
+  onHover,
+  onLeave,
+  onInstructions,
+  onPlay,
+}) {
   return (
     <div
       className="glass-card"
@@ -80,19 +90,46 @@ export default function GameCard({ game: g, isActive, isHovered, onToggle, onHov
         <span style={{ color: "var(--text-muted)", fontSize: "0.72rem" }}>
           ⭐ {g.xp.toLocaleString()} XP
         </span>
-        <button
-          style={{
-            padding: "7px 18px", borderRadius: 6, cursor: "pointer",
-            background: isActive ? g.color : `${g.color}18`,
-            border: `1px solid ${g.color}50`,
-            color: isActive ? "#000" : g.color,
-            fontFamily: "var(--font-heading)", fontSize: "0.7rem", letterSpacing: 1,
-            fontWeight: 700, transition: "all 0.3s",
-          }}
-          onClick={(e) => { e.stopPropagation(); onPlay(); }}
-        >
-          ▶ PLAY
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            style={{
+              padding: "7px 12px",
+              borderRadius: 6,
+              cursor: "pointer",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.2)",
+              color: "var(--text-secondary)",
+              fontFamily: "var(--font-heading)",
+              fontSize: "0.64rem",
+              letterSpacing: 0.8,
+              fontWeight: 700,
+              transition: "all 0.3s",
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onInstructions();
+            }}
+          >
+            Instructions
+          </button>
+
+          <button
+            style={{
+              padding: "7px 18px", borderRadius: 6, cursor: "pointer",
+              background: isActive ? g.color : `${g.color}18`,
+              border: `1px solid ${g.color}50`,
+              color: isActive ? "#000" : g.color,
+              fontFamily: "var(--font-heading)", fontSize: "0.7rem", letterSpacing: 1,
+              fontWeight: 700, transition: "all 0.3s",
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPlay();
+            }}
+          >
+            PLAY
+          </button>
+        </div>
       </div>
     </div>
   );

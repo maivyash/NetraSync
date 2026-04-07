@@ -11,6 +11,7 @@ import {
   playBuzzer,
   playBallBounce,
 } from "./FusionHoopsAudio";
+import { recordDailyPracticeScore } from "../utils/weeklyProgress";
 
 /* ---- court / level config ---- */
 const COURTS = [
@@ -62,6 +63,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
   const [shooter, setShooter] = useState(0); // which player shoots (0,1,2)
 
   const mouseInZone = useRef(false);
+  const sessionLoggedRef = useRef(false);
   const holdRef = useRef(0);
   const moveRef = useRef(0);
   const defTimer = useRef(0);
@@ -90,6 +92,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
     setBallFlying(false);
     setBallResult("");
     setShooter(0);
+    sessionLoggedRef.current = false;
     holdRef.current = 0;
     moveRef.current = 0;
     setRimPos({ x: 50, y: 38 });
@@ -112,12 +115,27 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
   /* ---- end-of-game popup phase ---- */
   useEffect(() => {
     if (!gameOver) return;
+
+    if (!sessionLoggedRef.current) {
+      const accuracy = attempts > 0 ? (made / attempts) * 100 : 0;
+      const scoreNormalized = Math.min(100, score / 8);
+      const practiceScore = Math.round(accuracy * 0.65 + scoreNormalized * 0.35);
+
+      recordDailyPracticeScore({
+        userId: window.localStorage.getItem("userId"),
+        gameId: "fusion-hoops",
+        score: practiceScore,
+      });
+
+      sessionLoggedRef.current = true;
+    }
+
     if (onRunningChange) onRunningChange(false);
     playBuzzer();
     setEndPhase("celebrate");
     const t = setTimeout(() => setEndPhase("results"), 1200);
     return () => clearTimeout(t);
-  }, [gameOver, onRunningChange]);
+  }, [attempts, gameOver, made, onRunningChange, score]);
 
   /* ---- timer ---- */
   useEffect(() => {

@@ -51,7 +51,16 @@ export default function Register() {
           body: formData,
         });
 
-        const data = await scanRes.json();
+        const rawResponse = await scanRes.text();
+        let data = {};
+
+        if (rawResponse) {
+          try {
+            data = JSON.parse(rawResponse);
+          } catch {
+            throw new Error(rawResponse || "AI scan failed");
+          }
+        }
 
         if (!scanRes.ok || !data.success) {
           throw new Error(data.error || "AI scan failed");

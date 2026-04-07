@@ -136,15 +136,15 @@
   left: 20px;
   right: 20px;
   z-index: 40;
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 12px;
   background: rgba(5, 8, 16, 0.8);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(0, 245, 255, 0.2);
   border-radius: 12px;
-  padding: 16px;
+  padding: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
@@ -152,11 +152,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 100px;
+  justify-content: center;
+  min-width: 0;
+  padding: 4px 6px;
 }
 
 .od-hud-cell--speed {
-  min-width: 120px;
+  min-width: 0;
+}
+
+.od-hud-cell--lock {
+  align-items: stretch;
 }
 
 .od-hud-lbl {
@@ -170,7 +176,7 @@
 
 .od-hud-num {
   font-family: var(--font-heading);
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: var(--neon-cyan);
   font-weight: 900;
   letter-spacing: 0.5px;
@@ -178,7 +184,7 @@
 
 .od-hud-big {
   font-family: 'Courier New', monospace;
-  font-size: 1.8rem;
+  font-size: 1.5rem;
   color: var(--neon-cyan);
   font-weight: 900;
   font-variant-numeric: tabular-nums;
@@ -197,15 +203,31 @@
   letter-spacing: 1px;
 }
 
+.od-hud-lockWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.od-hud-lockNum {
+  font-family: 'Courier New', monospace;
+  color: var(--neon-cyan);
+  font-weight: 900;
+  font-size: 0.72rem;
+  min-width: 36px;
+  text-align: right;
+}
+
 /* ── MAIN GAME CONTAINER ── */
 .orbdrive-container {
   position: relative;
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1.5fr;
+  grid-template-columns: 1.2fr 1fr;
   gap: 20px;
   padding: 20px;
-  margin-top: 100px;
+  margin-top: 122px;
 }
 
 /* ── ORB TRACKING PANEL (LEFT) ── */
@@ -758,7 +780,7 @@
 
 .od-gauge-track {
   width: 100%;
-  height: 8px;
+  height: 7px;
   background: rgba(0, 245, 255, 0.1);
   border-radius: 4px;
   overflow: hidden;
@@ -790,7 +812,7 @@
 /* ── HINTS & WARNINGS ── */
 .orbdrive-holdHint {
   position: absolute;
-  bottom: 120px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 35;
@@ -813,10 +835,10 @@
 
 .orbdrive-warning {
   position: absolute;
-  top: 140px;
+  top: 185px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 35;
+  z-index: 55;
   padding: 14px 28px;
   background: rgba(239, 68, 68, 0.15);
   border: 2px solid rgba(239, 68, 68, 0.5);
@@ -1155,20 +1177,15 @@
 @media (max-width: 1024px) {
   .orbdrive-container {
     grid-template-columns: 1fr;
-    margin-top: 140px;
+    margin-top: 150px;
   }
 
   .track-hud {
     bottom: 160px;
   }
 
-  .od-dashboard {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .od-dash-cell--gauge {
-    grid-column: span 2;
-    width: 100%;
+  .od-hud-bar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -1180,11 +1197,12 @@
   .od-hud-bar {
     top: 70px;
     padding: 12px;
-    gap: 12px;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .od-hud-cell {
-    min-width: 80px;
+    min-width: 0;
   }
 
   .orbdrive-container {
@@ -1207,13 +1225,10 @@
     font-size: 1.3rem;
   }
 
-  .od-dashboard {
-    padding: 12px;
-    gap: 8px;
-    grid-template-columns: 1fr;
-  }
-
-  .od-dash-cell--gauge {
-    grid-column: 1;
+  .orbdrive-holdHint {
+    bottom: 16px;
+    width: calc(100% - 36px);
+    font-size: 0.72rem;
+    padding: 10px 14px;
   }
 }

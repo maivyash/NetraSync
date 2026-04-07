@@ -1,7 +1,7 @@
 /**
- * DashboardNav — Sticky top navigation bar.
+ * DashboardNav — Sticky top navigation bar with clickable profile icon.
  */
-export default function DashboardNav() {
+export default function DashboardNav({ onProfileClick }) {
   return (
     <nav style={{
       position: "sticky", top: 0, zIndex: 100,
@@ -37,13 +37,28 @@ export default function DashboardNav() {
           }}>LEVEL 7</div>
           <div style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>4,790 / 6,000 XP</div>
         </div>
-        <div style={{
-          width: 40, height: 40, borderRadius: "50%",
-          background: "linear-gradient(135deg,#00f5ff30,#a855f730)",
-          border: "2px solid rgba(0,245,255,0.4)",
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
-          boxShadow: "0 0 12px rgba(0,245,255,0.3)",
-        }}>🧑‍⚕️</div>
+        <button
+          onClick={onProfileClick}
+          style={{
+            width: 40, height: 40, borderRadius: "50%",
+            background: "linear-gradient(135deg,#00f5ff30,#a855f730)",
+            border: "2px solid rgba(0,245,255,0.4)",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+            boxShadow: "0 0 12px rgba(0,245,255,0.3)",
+            cursor: "pointer",
+            transition: "all 0.3s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.boxShadow = "0 0 20px rgba(0,245,255,0.6)";
+            e.target.style.transform = "scale(1.1)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.boxShadow = "0 0 12px rgba(0,245,255,0.3)";
+            e.target.style.transform = "scale(1)";
+          }}
+        >
+          🧑‍⚕️
+        </button>
       </div>
     </nav>
   );
