@@ -98,6 +98,18 @@ C_DOM=(0,255,180); C_T_ON=(0,255,255); C_CAPTURE=(180,255,180)
 NOISE_FLOOR=0.025; MILD_RATIO_THR=0.06; MOD_RATIO_THR=0.12; SEV_RATIO_THR=0.20
 MILD_THR=15.0; MOD_THR=40.0; SEV_THR=70.0; MAX_DEV=0.30
 
+# ── Face-based cursor control constants ───────────────────────────────────────
+# EAR (Eye Aspect Ratio) below this means the eye is closed / blinking.
+EAR_OPEN_THRESHOLD = 0.18
+# Number of consecutive closed-eye frames before we stop the cursor.
+BLINK_GRACE_FRAMES = 3
+# Face-gaze smoothing window (larger = smoother but more lag)
+FACE_GAZE_SMOOTH_WINDOW = 10
+# Dead-zone: ignore face micro-movements smaller than this (0-1 normalized)
+FACE_DEAD_ZONE = 0.008
+# How much head yaw/pitch contribute vs nose position (0.0-1.0)
+HEAD_POSE_WEIGHT = 0.35
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ALL FUNCTIONS — VERBATIM from eye_tracker.py
@@ -295,7 +307,7 @@ def calc_misalignment(dominant:EyeGaze, non_dom:EyeGaze, head_yaw:float=0.0)->Mi
 
 
 class CursorTracker:
-    """VERBATIM from eye_tracker.py — delta/velocity cursor."""
+    """VERBATIM from eye_tracker.py — delta/velocity cursor (legacy, kept for API compat)."""
     def __init__(self,sw,sh,smooth=5,speed=20.0):
         self.sw=sw; self.sh=sh; self.speed=speed
         self.buf_gx=deque(maxlen=smooth); self.buf_gy=deque(maxlen=smooth)
@@ -321,6 +333,119 @@ class CursorTracker:
         _move_cursor(nx,ny)
 
     def reset(self): self.buf_gx.clear(); self.buf_gy.clear()
+
+
+class FaceGazeTracker:
+    """
+    Face-based cursor control — uses the whole face (nose tip position +
+    head yaw/pitch) to drive a screen-mapped cursor.  Much more stable and
+    accurate than iris-only tracking because face movements are larger and
+    less noisy.
+
+    Gating logic:
+      • Both eyes must be OPEN (EAR > threshold) AND face must be detected.
+      • A short grace period absorbs natural blinks without jerking the cursor.
+    """
+
+    def __init__(self, smooth=FACE_GAZE_SMOOTH_WINDOW):
+        self._buf_h = deque(maxlen=smooth)
+        self._buf_v = deque(maxlen=smooth)
+        # Calibration anchors: collected from the first N frames to learn
+        # the user's "center" face position.
+        self._calib_buf_h = deque(maxlen=60)
+        self._calib_buf_v = deque(maxlen=60)
+        self._center_h = 0.5
+        self._center_v = 0.5
+        self._calibrated = False
+        # Blink gating state
+        self._closed_streak = 0
+        self._last_h = 0.5
+        self._last_v = 0.5
+        self._active = False  # True once first valid frame arrives
+
+    def compute(self, landmarks, w, h, head_yaw, head_pitch, left_ear, right_ear):
+        """
+        Returns (face_h_ratio, face_v_ratio, eyes_open: bool)
+        Ratios are 0-1, representing where the user is looking on screen.
+        """
+        # ── Eye-open gating ──────────────────────────────────────────────
+        avg_ear = (left_ear + right_ear) / 2.0
+        eyes_open = avg_ear > EAR_OPEN_THRESHOLD
+
+        if not eyes_open:
+            self._closed_streak += 1
+        else:
+            self._closed_streak = 0
+
+        # During grace period, hold last known position
+        if self._closed_streak > BLINK_GRACE_FRAMES:
+            return self._last_h, self._last_v, False
+
+        # ── Face position: nose tip normalized to frame ──────────────────
+        nose = landmarks[NOSE_TIP]
+        # Camera frame is mirrored, so nose.x=0 is right edge of screen
+        # nose.x is already 0-1 (MediaPipe normalized)
+        raw_h = float(nose.x)
+        raw_v = float(nose.y)
+
+        # ── Add head pose contribution for finer control ─────────────────
+        # Yaw: turning head right → cursor moves right (yaw is + when nose is right of center)
+        # Normalize yaw: realistic range is about -30 to +30 degrees
+        yaw_norm = np.clip(head_yaw / 35.0, -1.0, 1.0) * 0.5 + 0.5   # → 0-1
+        pitch_norm = np.clip(head_pitch / 25.0, -1.0, 1.0) * 0.5 + 0.5  # → 0-1
+
+        # Blend face position + head pose
+        pw = HEAD_POSE_WEIGHT
+        blended_h = raw_h * (1 - pw) + yaw_norm * pw
+        blended_v = raw_v * (1 - pw) + pitch_norm * pw
+
+        # ── Auto-calibration: learn center from first ~60 frames ─────────
+        if not self._calibrated:
+            self._calib_buf_h.append(blended_h)
+            self._calib_buf_v.append(blended_v)
+            if len(self._calib_buf_h) >= 40:
+                self._center_h = float(np.median(self._calib_buf_h))
+                self._center_v = float(np.median(self._calib_buf_v))
+                self._calibrated = True
+                print(f"  [FACE-GAZE] Calibrated center: h={self._center_h:.3f} v={self._center_v:.3f}")
+            # During calibration, return center
+            return 0.5, 0.5, True
+
+        # ── Map relative to calibrated center → 0-1 output ──────────────
+        # Effective range: center ± 0.20 maps to 0-1
+        RANGE_H = 0.18
+        RANGE_V = 0.14
+        norm_h = 0.5 + (blended_h - self._center_h) / (2 * RANGE_H)
+        norm_v = 0.5 + (blended_v - self._center_v) / (2 * RANGE_V)
+        norm_h = float(np.clip(norm_h, 0.0, 1.0))
+        norm_v = float(np.clip(norm_v, 0.0, 1.0))
+
+        # ── Dead-zone: suppress micro-jitter ─────────────────────────────
+        if self._active:
+            if abs(norm_h - self._last_h) < FACE_DEAD_ZONE:
+                norm_h = self._last_h
+            if abs(norm_v - self._last_v) < FACE_DEAD_ZONE:
+                norm_v = self._last_v
+
+        # ── Smooth with moving-median for jitter rejection ───────────────
+        self._buf_h.append(norm_h)
+        self._buf_v.append(norm_v)
+        smooth_h = float(np.median(self._buf_h))
+        smooth_v = float(np.median(self._buf_v))
+
+        self._last_h = smooth_h
+        self._last_v = smooth_v
+        self._active = True
+
+        return smooth_h, smooth_v, True
+
+    def reset(self):
+        self._buf_h.clear(); self._buf_v.clear()
+        self._calib_buf_h.clear(); self._calib_buf_v.clear()
+        self._calibrated = False
+        self._closed_streak = 0
+        self._last_h = 0.5; self._last_v = 0.5
+        self._active = False
 
 
 class CameraCapture:
@@ -393,6 +518,7 @@ class EynoixEngine:
         self.pct_buf     = deque(maxlen=12)
         sw, sh           = _screen_size()
         self.cursor_track = CursorTracker(sw, sh, smooth=5, speed=20.0)
+        self.face_gaze   = FaceGazeTracker(smooth=FACE_GAZE_SMOOTH_WINDOW)
         self.cursor_on   = False
 
         BaseOpts = mp.tasks.BaseOptions
@@ -496,7 +622,8 @@ class EynoixEngine:
 
         if not result.face_landmarks:
             return {"type": "frame", "face_detected": False,
-                    "fps": round(fps, 1), "timestamp": time.time()}
+                    "fps": round(fps, 1), "timestamp": time.time(),
+                    "eyes_open": False}
 
         lms = result.face_landmarks[0]
         self.left_eye.update(lms, w, h)
@@ -510,25 +637,47 @@ class EynoixEngine:
         if   m.percentage < MILD_THR: m.color = C_GREEN
         elif m.percentage < MOD_THR:  m.color = C_YELLOW
         else:                          m.color = C_RED
+
+        # ── Face-based gaze tracking (drives cursor + WebSocket output) ──
+        face_h, face_v, eyes_open = self.face_gaze.compute(
+            lms, w, h, head_yaw, head_pitch,
+            self.left_eye.ear, self.right_eye.ear)
+
         if self.cursor_on:
-            self.cursor_track.move(self.dominant)
+            if eyes_open:
+                # Use face-based absolute position mapping
+                sw, sh = self.cursor_track.sw, self.cursor_track.sh
+                target_x = int(np.clip(face_h * sw, 0, sw - 1))
+                target_y = int(np.clip(face_v * sh, 0, sh - 1))
+                _move_cursor(target_x, target_y)
+            # else: eyes closed — cursor stays still
+
         ipd = tilt = None
         if self.left_eye.iris_center and self.right_eye.iris_center:
             dx = self.right_eye.iris_center[0] - self.left_eye.iris_center[0]
             dy = self.right_eye.iris_center[1] - self.left_eye.iris_center[1]
             ipd  = round(math.sqrt(dx*dx + dy*dy), 2)
             tilt = round(math.degrees(math.atan2(dy, dx)), 2)
+
+        # Build the dominant_eye dict — override h_ratio/v_ratio with face-based values
+        # so the frontend receives accurate face-tracked coordinates.
+        dom_dict = self.dominant.to_dict()
+        dom_dict["h_ratio"] = round(face_h, 5)
+        dom_dict["v_ratio"] = round(face_v, 5)
+
         return {
             "type": "frame", "face_detected": True, "fps": round(fps, 1),
             "timestamp": time.time(), "dominant_side": self.dominant_side,
             "left_eye": self.left_eye.to_dict(), "right_eye": self.right_eye.to_dict(),
-            "dominant_eye": self.dominant.to_dict(), "non_dominant_eye": self.non_dom.to_dict(),
+            "dominant_eye": dom_dict, "non_dominant_eye": self.non_dom.to_dict(),
             "misalignment": m.to_dict(),
             "head_pose": {"yaw_deg": round(head_yaw, 2),
                           "pitch_deg": round(head_pitch, 2),
                           "roll_deg": round(head_roll, 2)},
             "interpupillary_distance_px": ipd, "head_tilt_deg": tilt,
             "cursor_active": self.cursor_on,
+            "eyes_open": eyes_open,
+            "face_gaze": {"h_ratio": round(face_h, 5), "v_ratio": round(face_v, 5)},
         }
 
     def _loop(self):
@@ -738,6 +887,7 @@ class EynoixEngine:
         self.pct_buf.clear()
         self.ratio_smoother.reset()
         self.cursor_track.reset()
+        self.face_gaze.reset()
         return {"ok": True}
 
     def enable_cursor(self, speed=20.0):
@@ -748,6 +898,7 @@ class EynoixEngine:
     def disable_cursor(self):
         self.cursor_on = False
         self.cursor_track.reset()
+        self.face_gaze.reset()
         return {"ok": True, "cursor_active": False}
 
     def get_gaze_direction(self):

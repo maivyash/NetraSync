@@ -1,142 +1,134 @@
 /**
- * useEyeCursor – Single source of truth for EYONIX eye-tracking in games.
+ * useEyeCursor – Controls face-based OS cursor via face_cursor.py server.
+ *
+ * Architecture:
+ *   • face_cursor.py (port 8767) — moves the OS cursor using face tracking.
+ *     The frontend sends "start"/"stop" commands. The cursor is controlled at
+ *     the OS level, so normal mouse events fire in the game canvas naturally.
+ *
+ *   • eynoix_server.py (port 8765) — alignment / misalignment analysis.
+ *     That connection is managed separately (not by this hook).
  *
  * When `active` is true:
- *   1. Opens a WebSocket to the EYONIX server (triggers the camera to open)
- *   2. Receives real-time face/gaze frames
- *   3. Maps the dominant eye's h_ratio/v_ratio to viewport pixel coordinates
- *   4. Exposes smoothed gazePos (state) and gazePosRef (ref, for game loops)
+ *   1. Connects to face_cursor.py WebSocket (port 8767)
+ *   2. Sends { action: "start" } to begin face tracking + cursor control
+ *   3. Monitors status updates (calibrating → tracking → paused)
+ *   4. On deactivate, sends { action: "stop" } and disconnects
  *
- * Handles React Strict Mode gracefully (debounced connection).
+ * Since face_cursor.py controls the OS cursor directly via pyautogui,
+ * the games receive normal mousemove events — NO gazePosRef needed.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
-const EYONIX_WS = "ws://localhost:8765";
+const FACE_CURSOR_WS = "ws://localhost:8767";
 
 export default function useEyeCursor(active = false) {
-
-
-
-
-  const [gazePos, setGazePos] = useState({ x: 0, y: 0 });
-  const [status, setStatus] = useState("idle"); // idle | connecting | active | error
+  // Status: idle | connecting | calibrating | active | paused | error
+  const [status, setStatus] = useState("idle");
   const wsRef = useRef(null);
-  const gazePosRef = useRef({ x: 0, y: 0 });
-
-  // Smoothing – moving average over N frames
-  const SMOOTH_WINDOW = 6;
-  const smoothBuf = useRef({ x: [], y: [] });
-
-  const smoothPush = useCallback((rawX, rawY) => {
-    const buf = smoothBuf.current;
-    buf.x.push(rawX);
-    buf.y.push(rawY);
-    if (buf.x.length > SMOOTH_WINDOW) buf.x.shift();
-    if (buf.y.length > SMOOTH_WINDOW) buf.y.shift();
-    const sx = buf.x.reduce((a, b) => a + b, 0) / buf.x.length;
-    const sy = buf.y.reduce((a, b) => a + b, 0) / buf.y.length;
-    return { x: sx, y: sy };
-  }, []);
 
   useEffect(() => {
     // ── DEACTIVATE: cleanup ──
     if (!active) {
       if (wsRef.current) {
-        console.log("[useEyeCursor] Closing WebSocket (deactivated)");
+        // Send stop command before closing
+        try {
+          if (wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ action: "stop" }));
+          }
+        } catch {
+          // ignore
+        }
+        console.log("[useEyeCursor] Closing face_cursor WebSocket (deactivated)");
         wsRef.current.close();
         wsRef.current = null;
       }
       setStatus("idle");
-      setGazePos({ x: 0, y: 0 });
-      gazePosRef.current = { x: 0, y: 0 };
-      smoothBuf.current = { x: [], y: [] };
       return;
     }
 
-    // ── ACTIVATE: debounce connection to survive React Strict Mode ──
-    // In dev, React 18 fires effects twice (mount → unmount → mount).
-    // A small delay ensures only the final mount actually connects.
+    // ── ACTIVATE: debounce connection for React Strict Mode ──
     let cancelled = false;
     let ws = null;
 
-    console.log("[useEyeCursor] Scheduling WebSocket connection…");
+    console.log("[useEyeCursor] Scheduling face_cursor connection…");
     setStatus("connecting");
 
     const connectTimer = setTimeout(() => {
       if (cancelled) return;
 
-      console.log("[useEyeCursor] Opening WebSocket to", EYONIX_WS);
-      ws = new WebSocket(EYONIX_WS);
+      console.log("[useEyeCursor] Opening WebSocket to", FACE_CURSOR_WS);
+      ws = new WebSocket(FACE_CURSOR_WS);
       wsRef.current = ws;
 
       ws.onopen = () => {
         if (cancelled) { ws.close(); return; }
-        console.log("[useEyeCursor] ✓ WebSocket connected — camera is now active");
-        setStatus("active");
+        console.log("[useEyeCursor] ✓ Connected to face_cursor server");
+        // Send start command to begin face tracking
+        ws.send(JSON.stringify({ action: "start" }));
+        setStatus("connecting"); // will upgrade when we get status update
       };
 
       ws.onerror = () => {
         if (cancelled) return;
-        console.error("[useEyeCursor] ✗ WebSocket error — is eynoix_server.py running?");
+        console.error("[useEyeCursor] ✗ WebSocket error — is face_cursor.py running?");
         setStatus("error");
       };
 
       ws.onclose = () => {
         if (cancelled) return;
-        console.log("[useEyeCursor] WebSocket closed");
+        console.log("[useEyeCursor] face_cursor WebSocket closed");
         setStatus("idle");
       };
 
       ws.onmessage = (evt) => {
         if (cancelled) return;
         try {
-          console.log(evt.data);
-
           const data = JSON.parse(evt.data);
 
-          // Only process live camera frames where a face was detected
-          if (data.type !== "frame" || !data.face_detected) return;
-
-          const dom = data.dominant_eye;
-          if (!dom || dom.h_ratio == null || dom.v_ratio == null) return;
-
-          const hRatio = dom.h_ratio;
-          const vRatio = dom.v_ratio;
-
-          const vw = window.innerWidth;
-          const vh = window.innerHeight;
-
-          // Expand the usable gaze range.
-          const H_MIN = 0.28, H_MAX = 0.72;
-          const V_MIN = 0.32, V_MAX = 0.68;
-
-          const normalizedH = Math.max(0, Math.min(1, (hRatio - H_MIN) / (H_MAX - H_MIN)));
-          const normalizedV = Math.max(0, Math.min(1, (vRatio - V_MIN) / (V_MAX - V_MIN)));
-
-          const rawX = normalizedH * vw;
-          const rawY = normalizedV * vh;
-
-          const smoothed = smoothPush(rawX, rawY);
-
-          gazePosRef.current = smoothed;
-          setGazePos({ x: smoothed.x, y: smoothed.y });
+          // Handle status updates from face_cursor server
+          if (data.type === "status") {
+            switch (data.status) {
+              case "calibrating":
+                setStatus("connecting"); // show "connecting" during calibration
+                break;
+              case "tracking":
+                setStatus("active");
+                break;
+              case "paused":
+                setStatus("paused");
+                break;
+              case "stopped":
+                setStatus("idle");
+                break;
+              default:
+                break;
+            }
+          }
         } catch {
-          // Malformed frame — skip silently
+          // Malformed message — skip
         }
       };
-    }, 150); // 150ms debounce — Strict Mode cleanup fires within ~50ms
+    }, 150); // 150ms debounce for Strict Mode
 
     // ── CLEANUP ──
     return () => {
       cancelled = true;
       clearTimeout(connectTimer);
       if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        try {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: "stop" }));
+          }
+        } catch {
+          // ignore
+        }
         ws.close();
       }
       wsRef.current = null;
     };
-  }, [active, smoothPush]);
+  }, [active]);
 
-  return { gazePos, gazePosRef, status };
+  return { status };
 }

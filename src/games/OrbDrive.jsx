@@ -76,7 +76,7 @@ const formatRaceTime = (seconds) => {
   return `${mm}:${ss}`;
 };
 
-export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange } = {}) {
+export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
   const navigate = useNavigate();
 
   const exitToMenu = () => {
@@ -116,7 +116,7 @@ export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange 
   const shiftRef = useRef({ nextAt: 0, offX: 0, offY: 0 });
 
   const [running, setRunning] = useState(false);
-  const [phase, setPhase] = useState("idle"); // idle | mode | ready | countdown | running | result
+  const [phase, setPhase] = useState("idle"); // idle | mode | ready | countdown | running | result | resetting
   const [modeKey, setModeKey] = useState("beginner");
   const [countdown, setCountdown] = useState(null);
   const [orbPos, setOrbPos] = useState({ x: 50, y: 50 });
@@ -150,8 +150,6 @@ export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange 
   })();
 
   const handleMouseMove = (e) => {
-    // Block physical mouse ONLY during active gameplay when pupil tracking is on
-    if (gazePosRef && running) return;
     if (!orbPanelRef.current) return;
     const rect = orbPanelRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -204,7 +202,7 @@ export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange 
     stopEngine();
     stopWind();
     setRunning(false);
-    setPhase("idle");
+    setPhase("resetting"); // dedicated phase — no overlap
     if (onRunningChange) onRunningChange(false);
     setCountdown(null);
     setResetting(true);
@@ -339,6 +337,16 @@ export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange 
     setPhase("ready");
   };
 
+  // Auto-transition from "resetting" → "idle" so the Start button reappears
+  useEffect(() => {
+    if (phase !== "resetting") return;
+    const t = window.setTimeout(() => {
+      setResetting(false);
+      setPhase("idle");
+    }, 2000);
+    return () => window.clearTimeout(t);
+  }, [phase]);
+
   const startCountdown = () => {
     setPhase("countdown");
     setCountdown(3);
@@ -371,17 +379,8 @@ export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange 
       timeRef.current += dt;
       setTime(timeRef.current);
 
-      // ── Pupil tracking: convert viewport pixel gaze to orb-panel % ──
-      if (gazePosRef && orbPanelRef.current) {
-        const rect = orbPanelRef.current.getBoundingClientRect();
-        const gaze = gazePosRef.current;
-        const px = ((gaze.x - rect.left) / rect.width) * 100;
-        const py = ((gaze.y - rect.top) / rect.height) * 100;
-        mouseRef.current = {
-          x: Math.max(0, Math.min(100, px)),
-          y: Math.max(0, Math.min(100, py)),
-        };
-      }
+      // face_cursor.py drives the OS cursor directly via pyautogui,
+      // so handleMouseMove fires naturally — no manual gaze mapping needed.
 
       // Reaction variability (gaze jitter) approximation from pointer jitter.
       const dxm = mouseRef.current.x - jitterRef.current.lastX;
@@ -441,7 +440,8 @@ export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange 
       raceStatsRef.current.sumFs += fs;
       raceStatsRef.current.count += 1;
 
-      // MFCT threshold: below 45% continuously for 3s -> speed drops; 5s -> reset.
+      // MFCT threshold: below 45% continuously for 3s -> speed penalty + warning.
+      // The game should NEVER auto-reset/close — only the player can reset.
       if (align < MFCT_THRESHOLD) {
         lowMfctRef.current += dt;
       } else {
@@ -449,14 +449,8 @@ export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange 
       }
 
       const low3 = lowMfctRef.current >= 3;
-      const low5 = lowMfctRef.current >= 5;
       if (low3 && lowMfctRef.current - dt < 3) playWarning(); // only on first crossing
       setWarning(low3);
-
-      if (low5) {
-        resetRace();
-        return;
-      }
 
       const mappedSpeed = Math.min(MAX_SPEED, BASE_SPEED + fs * 160);
       const forcedSlow = low3 ? 40 : null;
@@ -551,7 +545,7 @@ export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange 
   }, [running]);
 
   return (
-    <div className="orbdrive-wrapper" style={gazePosRef && running ? { cursor: 'none' } : undefined}>
+    <div className="orbdrive-wrapper">
       <button
         className="orbdrive-close-btn"
         onClick={exitToMenu}
@@ -628,13 +622,13 @@ export default function OrbDrive({ onClose, onExit, gazePosRef, onRunningChange 
         </div>
       )}
 
-      {!running && phase === "idle" && (
+      {!running && phase === "idle" && !resetting && (
         <button className="orbdrive-start-btn" onClick={beginFlow}>
           ▶ Start Race
         </button>
       )}
 
-      {!running && resetting && (
+      {!running && phase === "resetting" && (
         <div className="orbdrive-resetMsg">Race reset — try again!</div>
       )}
 
