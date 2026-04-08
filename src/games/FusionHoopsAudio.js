@@ -108,37 +108,33 @@ export function playWhistle() {
   const c = getCtx();
   const now = c.currentTime;
 
-  // High pitched whistle — two oscillators for a "trilling" effect
-  [3200, 3600].forEach((freq, i) => {
+  // Triumphant Fanfare (Major Chord: C5, E5, G5)
+  [523, 659, 784].forEach((freq, i) => {
     const osc = c.createOscillator();
     const gain = c.createGain();
-    osc.type = "sine";
+    osc.type = "square";
     osc.frequency.value = freq;
-    // slight vibrato
-    const vib = c.createOscillator();
-    const vibG = c.createGain();
-    vib.frequency.value = 18;
-    vibG.gain.value = 80;
-    vib.connect(vibG).connect(osc.frequency);
-    vib.start(now);
-    vib.stop(now + 0.6);
-
-    gain.gain.setValueAtTime(0.18, now);
-    gain.gain.setValueAtTime(0.18, now + 0.35);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    
+    // Smooth envelope
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.12, now + 0.05 + i * 0.05);
+    gain.gain.setValueAtTime(0.12, now + 0.4);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+    
     osc.connect(gain).connect(c.destination);
-    osc.start(now + i * 0.02);
-    osc.stop(now + 0.6);
+    osc.start(now + i * 0.05);
+    osc.stop(now + 0.85);
   });
 
   // Net swish swoosh
   setTimeout(() => playNetSwish(), 100);
 
-  // Crowd roar
+  // Extended Crowd roar and Applause
   crowdRoar();
+  setTimeout(() => crowdRoar(), 800);
 }
 
-/* Net "swish" swoosh — short filtered noise */
+/* Net swish swoosh — short filtered noise */
 function playNetSwish() {
   const c = getCtx();
   const sr = c.sampleRate;
