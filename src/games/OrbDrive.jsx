@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import confetti from "canvas-confetti";
 import "../styles/orbdrive.css";
+import carImg from "../assets/car.png";
 import {
   startEngine,
   updateEngine,
@@ -22,7 +23,6 @@ import { recordDailyPracticeScore } from "../utils/weeklyProgress";
 
 const BASE_SPEED = 60;
 const MAX_SPEED = 220;
-const TRACK_LENGTH = 1000;
 const ALIGNMENT_THRESHOLD = 45;
 const MFCT_THRESHOLD = 45;
 
@@ -41,6 +41,8 @@ const MODES = {
     tunnelAccelPerSec: 0,
     depthWarp: 0,
     shiftEverySec: 0,
+    trackLength: 1000,
+    turns: [],
   },
   intermediate: {
     key: "intermediate",
@@ -53,6 +55,8 @@ const MODES = {
     tunnelAccelPerSec: 0.02,
     depthWarp: 1,
     shiftEverySec: 0,
+    trackLength: 1500,
+    turns: [{ at: 0.33, dir: 1 }, { at: 0.66, dir: -1 }],
   },
   advanced: {
     key: "advanced",
@@ -65,6 +69,8 @@ const MODES = {
     tunnelAccelPerSec: 0.06,
     depthWarp: 1,
     shiftEverySec: 2.2,
+    trackLength: 2000,
+    turns: [{ at: 0.25, dir: -1 }, { at: 0.5, dir: 1 }, { at: 0.75, dir: -1 }],
   },
 };
 
@@ -280,6 +286,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
     const bonusPct = Math.max(0, Math.min(20, Math.round(avgFs * 20)));
     const maxSpd = Math.round(raceStatsRef.current.maxSpeed);
     const raceTimeSec = timeRef.current;
+    
     const practiceScore = Math.round(
       Math.max(
         0,
@@ -288,7 +295,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
     );
 
     const bestKey = `orbdrive_best_${modeKey}`;
-    const prevBest = Number.parseFloat(window.localStorage.getItem(bestKey) ?? "");
+    const prevBest = Number.parseFloat(window.localStorage.getItem(bestKey));
     const bestTimeSec =
       Number.isFinite(prevBest) && prevBest > 0
         ? Math.min(prevBest, raceTimeSec)
@@ -306,7 +313,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
       avgAlignment: avgAlign,
       maxSpeed: maxSpd,
       focusBonusPct: bonusPct,
-      trackMeters: TRACK_LENGTH,
+      trackMeters: mode.trackLength,
       difficulty: mode.label,
       bestTimeSec,
     });
@@ -420,8 +427,8 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
         shiftRef.current.offY = 0;
       }
 
-      const orbX = 50 + (30 * Math.sin(angleRef.current)) + shiftRef.current.offX;
-      const orbY = 50 + (20 * Math.cos(angleRef.current * 1.5)) + shiftRef.current.offY;
+      const orbX = 50 + (42 * Math.sin(angleRef.current)) + shiftRef.current.offX;
+      const orbY = 50 + (35 * Math.cos(angleRef.current * 1.5)) + shiftRef.current.offY;
       setOrbPos({ x: orbX, y: orbY });
 
       const dx = mouseRef.current.x - orbX;
@@ -507,42 +514,26 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
       if (focusedNow && speedRef.current > 1) {
         const nextProgress = Math.min(
           1,
-          progressRef.current + (speedRef.current / 3.6) * dt / TRACK_LENGTH
+          progressRef.current + ((speedRef.current / 3.6) * dt) / mode.trackLength
         );
         progressRef.current = nextProgress;
         setProgress(nextProgress);
 
-        // Check for finish line collision - use progress-based finish
-        // When progress reaches 95%+, the race is essentially complete
-        if (nextProgress >= 0.95) {
-          cancelAnimationFrame(animationRef.current);
-          progressRef.current = 1;
-          setProgress(1);
-          triggerWin();
-          return;
-        }
-
-        // Also check for DOM-based finish line collision as backup
+        // Check for DOM-based finish line collision
         const carEl = playerCarRef.current;
         const finishEl = finishLineRef.current;
-        if (carEl && finishEl && nextProgress > 0.4) {
+        if (carEl && finishEl && nextProgress > 0.1) {
           try {
             const carRect = carEl.getBoundingClientRect();
             const finishRect = finishEl.getBoundingClientRect();
-            
-            // Car crosses finish when its bottom edge reaches/passes the finish line bottom
-            const carBottom = carRect.bottom;
-            const finishBottom = finishRect.bottom;
-            
-            // Account for tolerance - car must be close/overlapping with finish
-            if (carBottom >= finishBottom - 20 && carBottom <= finishBottom + 40) {
-              if (nextProgress > 0.4) {
-                cancelAnimationFrame(animationRef.current);
-                progressRef.current = 1;
-                setProgress(1);
-                triggerWin();
-                return;
-              }
+
+            // Car makes exact contact with finish line when its top edge is a bit inside the finish line
+            if (carRect.top <= finishRect.bottom - 15 || nextProgress >= 1.0) {
+              cancelAnimationFrame(animationRef.current);
+              progressRef.current = 1;
+              setProgress(1);
+              triggerWin();
+              return;
             }
           } catch (e) {
             // Ignore errors
@@ -557,6 +548,18 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
     return () => cancelAnimationFrame(animationRef.current);
   }, [running]);
 
+  // Compute Turn State
+  let turnState = 0;
+  if (mode && mode.turns && mode.turns.length > 0) {
+    mode.turns.forEach(t => {
+      const diff = progress - t.at;
+      if (Math.abs(diff) < 0.10) {
+        const curve = Math.sin(((diff + 0.10) / 0.20) * Math.PI);
+        turnState += curve * t.dir;
+      }
+    });
+  }
+
   return (
     <div className="orbdrive-wrapper">
       <button
@@ -567,7 +570,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
       >
         ✕
       </button>
-      
+
       <h3 className="orbdrive-title">🚗 OrbDrive – Focus to Win</h3>
       <div className="orbdrive-sub">YOUR EYES CONTROL THE SPEED</div>
 
@@ -599,8 +602,8 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
                 <div className="orbdrive-resultValue">{raceResult.difficulty}</div>
               </div>
               <div className="orbdrive-resultStat">
-                <div className="orbdrive-resultLabel">BEST</div>
-                <div className="orbdrive-resultValue">{formatRaceTime(raceResult.bestTimeSec)}</div>
+                <div className="orbdrive-resultLabel">BEST SCORE</div>
+                <div className="orbdrive-resultValue" style={{color: '#ffcc00'}}>{formatRaceTime(raceResult.bestTimeSec)}</div>
               </div>
             </div>
 
@@ -707,10 +710,6 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
               <span className="od-hud-unit">KM/H</span>
             </div>
             <div className="od-hud-cell">
-              <span className="od-hud-lbl">PROGRESS</span>
-              <span className="od-hud-num">{Math.round(progress * 100)}%</span>
-            </div>
-            <div className="od-hud-cell">
               <span className="od-hud-lbl">ALIGNMENT</span>
               <span className="od-hud-num">{Math.round(alignment)}%</span>
             </div>
@@ -776,19 +775,40 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
 
             {/* ── RIGHT: Track Panel ── */}
             <div
-              className={"track-panel" + (carSpeed > 170 ? " od-warp" : "")}
+              className={"track-panel" + (carSpeed > 170 ? " od-warp" : "") + (focusStrength > 0.8 ? " od-nitro-speed" : "")}
               style={{ "--spd": speedPct }}
             >
-              {/* Sky layers */}
-              <div className="od-sky-layer" aria-hidden="true" />
-              <div className="od-city-layer" aria-hidden="true" />
-              <div className="track-mountains" aria-hidden="true" />
-
               {/* Neon guardrails */}
               <div className="od-rail od-rail--l" aria-hidden="true" />
               <div className="od-rail od-rail--r" aria-hidden="true" />
 
-              <div className="track-road" aria-hidden="true">
+              {/* Cheering Crowd */}
+              <div className="track-crowd track-crowd--l" aria-hidden="true" />
+              <div className="track-crowd track-crowd--r" aria-hidden="true" />
+
+              <div className="finish finish--fixed">
+                <div className="finish-label">🏁 FINISH</div>
+                <div className="finish-line" ref={finishLineRef} />
+              </div>
+
+              <div 
+                className="start-line" 
+                style={{ 
+                  transform: `translateY(${progress * 800}px)`, 
+                  opacity: Math.max(0, 1 - progress * 4) 
+                }}
+              >
+                <div className="start-label">START</div>
+              </div>
+
+              <div 
+                className="track-road" 
+                aria-hidden="true"
+                style={{
+                  transformOrigin: 'bottom center',
+                  transform: `skewX(${turnState * -12}deg)`
+                }}
+              >
                 {/* Edge lane glow */}
                 <div className="od-lane-edge od-lane-edge--l" aria-hidden="true" />
                 <div className="od-lane-edge od-lane-edge--r" aria-hidden="true" />
@@ -798,60 +818,51 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
                     key={i}
                     className="track-line"
                     style={{
-                      bottom: `${
-                        (i * 10 +
+                      bottom: `${(i * 10 +
                           time *
-                            carSpeed *
-                            0.09 *
-                            (mode.tunnelBaseMul + time * mode.tunnelAccelPerSec)) %
+                          carSpeed *
+                          0.09 *
+                          (mode.tunnelBaseMul + time * mode.tunnelAccelPerSec)) %
                         120
-                      }%`,
+                        }%`,
                       "--p": i / 12,
-                      "--xoff": `${
-                        mode.depthWarp
+                      "--xoff": `${mode.depthWarp
                           ? Math.sin(time * 1.15 + i * 0.85) *
-                            (4 + speedPct * 10) *
-                            (modeKey === "advanced" ? 1.3 : 1)
+                          (4 + speedPct * 10) *
+                          (modeKey === "advanced" ? 1.3 : 1)
                           : 0
-                      }px`,
+                        }px`,
                     }}
                   />
                 ))}
+              </div>
 
-                <div className="finish finish--fixed">
-                  <div className="finish-label">🏁 FINISH</div>
-                  <div className="finish-line" ref={finishLineRef} />
-                </div>
-
-                <div
-                  className="car car--player"
-                  ref={playerCarRef}
-                  style={{
-                    bottom: `${carBottomPct}%`,
-                    "--speed": carSpeed,
-                    "--carScale": carScale,
-                  }}
-                  aria-label="Car"
+              {/* Outside Car */}
+              <div
+                className="car car--player"
+                ref={playerCarRef}
+                style={{
+                  bottom: `${carBottomPct}%`,
+                  "--speed": carSpeed,
+                  "--carScale": carScale,
+                  transform: `translateX(-50%) rotate(${turnState * 10}deg) translateX(${turnState * -20}px)`
+                }}
+                aria-label="Car"
                 >
-                  <div className="od-car-headlights" aria-hidden="true" />
-                  <div className="orbdrive-car-body">
-                    <div className="orbdrive-car-windshield"></div>
-                    <div className="orbdrive-car-middle"></div>
-                    <div className="orbdrive-car-trunk"></div>
-                  </div>
-                  {carSpeed > 80 && (
+                  <img src={carImg} alt="Player Car" className="orbdrive-car-img" />
+                  {carSpeed > 80 && focusStrength <= 0.8 && (
                     <div className="od-exhaust-flame" aria-hidden="true" />
+                  )}
+                  {focusStrength > 0.8 && (
+                    <div className="od-nitro-flame" aria-hidden="true" />
                   )}
                   <div className="od-car-shadow" aria-hidden="true" />
                 </div>
 
                 <div
                   className="progress-bar"
-                  style={{
-                    width: `${progress * 100}%`,
-                  }}
+                  style={{ width: `${progress * 100}%` }}
                 />
-              </div>
 
               {/* Speedometer */}
               <div className="track-hud">

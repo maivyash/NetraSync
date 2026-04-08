@@ -137,7 +137,7 @@
   right: 20px;
   z-index: 40;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: stretch;
   gap: 12px;
   background: rgba(5, 8, 16, 0.8);
@@ -224,10 +224,10 @@
   position: relative;
   flex: 1;
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 20px;
-  padding: 20px;
-  margin-top: 122px;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 30px;
+  padding: 10px 40px 40px 40px;
+  margin-top: 100px;
 }
 
 /* ── ORB TRACKING PANEL (LEFT) ── */
@@ -340,7 +340,7 @@
 /* ── TRACK PANEL (RIGHT) ── */
 .track-panel {
   position: relative;
-  background: linear-gradient(180deg, #0a0f2e 0%, #050810 100%);
+  background: linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%);
   border: 2px solid rgba(0, 245, 255, 0.2);
   border-radius: 16px;
   overflow: hidden;
@@ -401,21 +401,19 @@
 .od-rail {
   position: absolute;
   z-index: 8;
-  top: 40%;
-  width: 8px;
-  height: 60%;
-  background: linear-gradient(180deg, rgba(0, 255, 136, 0) 0%, rgba(0, 255, 136, 0.8) 50%, rgba(0, 255, 136, 0) 100%);
-  box-shadow: 0 0 20px rgba(0, 255, 136, 0.8), inset 0 0 8px rgba(255, 255, 255, 0.3);
+  top: 0;
+  width: 12px;
+  height: 100%;
+  background: repeating-linear-gradient(135deg, #d32f2f, #d32f2f 20px, #ffffff 20px, #ffffff 40px);
+  box-shadow: 2px 0 5px rgba(0,0,0,0.5);
 }
 
 .od-rail--l {
   left: 5%;
-  animation: rail-flutter 2s ease-in-out infinite;
 }
 
 .od-rail--r {
   right: 5%;
-  animation: rail-flutter 2.2s ease-in-out infinite;
 }
 
 @keyframes rail-flutter {
@@ -439,11 +437,11 @@
 .od-lane-edge {
   position: absolute;
   z-index: 5;
-  top: 40%;
-  width: 2px;
-  height: 60%;
-  background: linear-gradient(180deg, rgba(0, 245, 255, 0) 0%, rgba(0, 245, 255, 0.6) 50%, rgba(0, 245, 255, 0) 100%);
-  box-shadow: 0 0 10px rgba(0, 245, 255, 0.6);
+  top: 0;
+  width: 4px;
+  height: 100%;
+  background: #ffffff;
+  box-shadow: none;
 }
 
 .od-lane-edge--l {
@@ -457,15 +455,15 @@
 /* Track lines (dashes) */
 .track-line {
   position: absolute;
-  width: 80%;
-  height: 12px;
-  border: 2px dashed rgba(0, 245, 255, 0.4);
+  width: 8px;
+  height: 40px;
+  background: #ffffff;
   border-radius: 2px;
-  left: 10%;
+  left: calc(50% - 4px);
   z-index: 4;
   transform: translateX(var(--xoff, 0)) scaleY(calc(1 - (var(--p, 0) * 0.3)));
-  opacity: calc(1 - (var(--p, 0) * 0.6));
-  box-shadow: 0 0 8px rgba(0, 245, 255, calc(0.3 - (var(--p, 0) * 0.2)));
+  opacity: calc(1 - (var(--p, 0) * 0.5));
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
 }
 
 /* Progress bar */
@@ -484,26 +482,21 @@
 /* Finish line */
 .finish {
   position: absolute;
-  width: 100%;
-  height: 60px;
-  bottom: 60px;
-  left: 0;
+  width: 90%;
+  height: 45px;
+  top: 0;
+  left: 5%;
   z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(0, 255, 136, 0.2),
-    rgba(0, 255, 136, 0.2) 10px,
-    rgba(255, 255, 255, 0.1) 10px,
-    rgba(255, 255, 255, 0.1) 20px
-  );
-  border-top: 3px solid var(--neon-green);
-  border-bottom: 3px solid var(--neon-green);
-  box-shadow: 0 0 30px rgba(0, 255, 136, 0.6);
-  animation: finish-pulse 1s ease-in-out infinite;
+  background: conic-gradient(#000 90deg, #fff 90deg 180deg, #000 180deg 270deg, #fff 270deg);
+  background-size: 40px 40px;
+  border-top: 3px solid #ffcc00;
+  border-bottom: 3px solid #ffcc00;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.8);
+  animation: none;
 }
 
 @keyframes finish-pulse {
@@ -528,92 +521,78 @@
   bottom: 0;
 }
 
+/* Start Line */
+.start-line {
+  position: absolute;
+  width: 90%;
+  height: 20px;
+  bottom: 2%;
+  left: 5%;
+  z-index: 9;
+  background: repeating-linear-gradient(90deg, #fff 0, #fff 30px, transparent 30px, transparent 60px);
+  border-top: 3px solid #00ff88;
+  display: flex;
+  justify-content: center;
+}
+.start-label {
+  position: absolute;
+  bottom: 25px;
+  color: #00ff88;
+  font-family: var(--font-heading);
+  font-weight: 900;
+  font-size: 1.2rem;
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
+}
+
+/* Cheering Crowd */
+.track-crowd {
+  position: absolute;
+  top: 0;
+  width: 5%;
+  height: 100%;
+  z-index: 1;
+  background-image: radial-gradient(circle, #fff 15%, transparent 25%), 
+                    radial-gradient(circle, #ffcc00 15%, transparent 25%),
+                    radial-gradient(circle, #ff0055 15%, transparent 25%),
+                    radial-gradient(circle, #00ffff 15%, transparent 25%);
+  background-size: 10px 10px, 15px 15px, 12px 12px, 18px 18px;
+  background-position: 0 0, 5px 5px, 10px 10px, 3px 8px;
+  animation: crowd-flash 0.3s infinite alternate;
+}
+.track-crowd--l { left: 0; }
+.track-crowd--r { right: 0; }
+
+@keyframes crowd-flash {
+  0% { opacity: 0.6; background-position: 0 0, 5px 5px, 10px 10px, 3px 8px; }
+  50% { opacity: 0.9; background-position: 2px 2px, 3px 6px, 8px 12px, 1px 9px; filter: brightness(1.3); }
+  100% { opacity: 0.7; background-position: 0 0, 4px 7px, 10px 8px, 5px 5px; filter: brightness(1.5); }
+}
+
 /* ── CAR — CSS-BASED DEFAULT CAR ── */
 .car {
   position: absolute;
-  width: 60px;
-  height: 80px;
+  width: 70px;
+  height: auto;
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
+  display: flex;
+  justify-content: center;
   --speed: 0;
   --carScale: 1;
 }
 
 .car--player {
   transform: scale(var(--carScale)) translateX(-50%);
-  filter: drop-shadow(0 4px 12px rgba(0, 245, 255, 0.5));
-}
-
-/* Default Car Body (CSS-based) */
-.orbdrive-car-body {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, #00f5ff 0%, #a855f7 100%);
-  border-radius: 8px 8px 4px 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  box-shadow: 0 4px 16px rgba(0, 245, 255, 0.6), inset 0 -2px 4px rgba(0, 0, 0, 0.5);
-  overflow: hidden;
-}
-
-/* Car Windshield */
-.orbdrive-car-windshield {
-  width: 40px;
-  height: 20px;
-  background: rgba(0, 245, 255, 0.6);
-  border-radius: 4px 4px 0 0;
-  margin-top: 4px;
-  box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.4);
-}
-
-/* Car Middle section */
-.orbdrive-car-middle {
-  flex: 1;
-  width: 100%;
-  background: linear-gradient(90deg, rgba(0, 245, 255, 0.4), rgba(168, 85, 247, 0.4));
-}
-
-/* Car Bottom (trunk) */
-.orbdrive-car-trunk {
-  width: 100%;
-  height: 12px;
-  background: linear-gradient(180deg, rgba(0, 245, 255, 0.3), rgba(168, 85, 247, 0.3));
-  border-radius: 0 0 4px 4px;
-}
-
-/* Headlights */
-.od-car-headlights {
-  position: absolute;
-  top: 8px;
-  left: 12px;
-  width: 6px;
-  height: 6px;
-  background: #ffff00;
-  border-radius: 50%;
-  box-shadow: 0 0 8px #ffff00, 0 0 4px rgba(255, 255, 0, 0.8);
-  z-index: 2;
-}
-
-.od-car-headlights::after {
-  content: '';
-  position: absolute;
-  right: -15px;
-  width: 6px;
-  height: 6px;
-  background: #ffff00;
-  border-radius: 50%;
-  box-shadow: 0 0 8px #ffff00;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
 }
 
 /* Car Image (fallback if provided) */
 .orbdrive-car-img {
-  position: absolute;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
+  object-fit: contain;
+  display: block;
   z-index: 1;
 }
 
@@ -636,21 +615,51 @@
 /* Exhaust flame */
 .od-exhaust-flame {
   position: absolute;
-  bottom: 2px;
+  bottom: -15px;
   left: 50%;
-  width: 8px;
-  height: 16px;
-  background: linear-gradient(180deg, rgba(255, 107, 53, 0.9) 0%, rgba(255, 107, 53, 0.4) 50%, transparent 100%);
-  border-radius: 50% 50% 0 0;
+  width: 16px;
+  height: 25px;
+  background: linear-gradient(180deg, rgba(255, 200, 53, 0.9) 0%, rgba(255, 107, 53, 0.4) 50%, transparent 100%);
+  border-radius: 50%;
   transform: translateX(-50%);
-  z-index: -1;
+  z-index: 0;
   filter: blur(2px);
-  animation: flame-flicker 0.1s ease-in-out infinite;
+  animation: flame-flicker 0.05s ease-in-out infinite;
 }
 
 @keyframes flame-flicker {
-  0%, 100% { height: 16px; opacity: 0.9; }
-  50% { height: 20px; opacity: 0.7; }
+  0%, 100% { height: 25px; opacity: 0.9; }
+  50% { height: 35px; opacity: 0.7; }
+}
+
+/* Nitro Boost Flame */
+.od-nitro-flame {
+  position: absolute;
+  bottom: -25px;
+  left: 50%;
+  width: 24px;
+  height: 40px;
+  background: linear-gradient(180deg, rgba(0, 245, 255, 0.9) 0%, rgba(168, 85, 247, 0.6) 50%, transparent 100%);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  z-index: 0;
+  box-shadow: 0 0 20px rgba(0, 245, 255, 0.8);
+  filter: blur(2px);
+  animation: nitro-flicker 0.05s ease-in-out infinite;
+}
+
+@keyframes nitro-flicker {
+  0%, 100% { height: 40px; opacity: 1; filter: brightness(1.2) blur(3px); }
+  50% { height: 50px; opacity: 0.8; filter: brightness(1.5) blur(2px); }
+}
+
+/* Speed lines effect when nitro */
+.track-panel.od-nitro-speed {
+  animation: nitro-shake 0.1s ease-in-out infinite;
+}
+@keyframes nitro-shake {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(0, 2px); }
 }
 
 /* Speedometer */
