@@ -11,6 +11,7 @@ import {
   LogoutOutlined,
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
+import { logout } from "../../utils/auth";
 import { getCurrentWeekProgress } from "../../utils/weeklyProgress";
 
 export default function ProfileModal({ isOpen, onClose, userName }) {
@@ -40,10 +41,9 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
   }, [isOpen]);
 
   const handleLogout = () => {
-    // Clear auth data + redirect
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userName");
-    navigate("/");
+    // Clear all auth data using the utility and redirect
+    logout();
+    navigate("/login");
   };
 
   const handleContinuePlaying = () => {

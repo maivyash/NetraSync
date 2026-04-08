@@ -5,6 +5,7 @@ import multer from "multer";
 import nodemailer from "nodemailer";
 import { createHash, randomInt } from "crypto";
 import { log } from "console";
+import { generateToken, verifyToken } from "../middleware/auth.js";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -157,8 +158,8 @@ router.post("/register", async (req, res) => {
     }
 });
 
-// ─── GET ALL USERS ──────────────────────────────────────────
-router.get("/users", async (req, res) => {
+// ─── GET ALL USERS (Protected Route) ──────────────────────────────────────────
+router.get("/users", verifyToken, async (req, res) => {
     try {
         const [users] = await db.execute(`
             SELECT 
@@ -178,8 +179,8 @@ router.get("/users", async (req, res) => {
     }
 });
 
-// ─── GET SINGLE USER BY ID ─────────────────────────────────
-router.get("/users/:id", async (req, res) => {
+// ─── GET SINGLE USER BY ID (Protected Route) ─────────────────────────────────
+router.get("/users/:id", verifyToken, async (req, res) => {
     try {
         const [users] = await db.execute(
             `SELECT 
@@ -458,6 +459,9 @@ router.post("/login", async (req, res) => {
             });
         }
 
+        // Generate JWT token
+        const token = generateToken(user.id, user.email, user.name);
+
         // Login successful
         console.log("LOGIN SUCCESS:", email);
         res.json({
@@ -466,6 +470,7 @@ router.post("/login", async (req, res) => {
             userId: user.id,
             userName: user.name,
             email: user.email,
+            token: token,
         });
     } catch (err) {
         console.error("Login error:", err);

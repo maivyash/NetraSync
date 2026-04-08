@@ -146,6 +146,12 @@ export default function Login() {
         throw new Error(data.error || "Invalid email or password");
       }
 
+      // Store JWT token and user info in localStorage
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("userId", data.userId);
+      localStorage.setItem("userName", data.userName);
+      localStorage.setItem("userEmail", data.email);
+
       message.success("Login successful. Redirecting to your dashboard...");
       navigate("/dashboard", { state: { userId: data.userId, userName: data.userName }, replace: true });
     } catch (error) {

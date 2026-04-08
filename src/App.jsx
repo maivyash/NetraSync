@@ -6,6 +6,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import PlayOrbDrive from "./pages/PlayOrbDrive";
 import PlayFusionHoops from "./pages/PlayFusionHoops";
+import ProtectedRoute from "./components/ProtectedRoute";
 import "./App.css";
 
 function App() {
@@ -31,9 +32,9 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/relogin" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/play/orb-drive" element={<PlayOrbDrive />} />
-          <Route path="/play/fusion-hoops" element={<PlayFusionHoops />} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/play/orb-drive" element={<ProtectedRoute><PlayOrbDrive /></ProtectedRoute>} />
+          <Route path="/play/fusion-hoops" element={<ProtectedRoute><PlayFusionHoops /></ProtectedRoute>} />
           <Route path="/teen" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
