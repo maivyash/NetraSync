@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Form, Input, Modal, message } from "antd";
 import { useNavigate } from "react-router-dom";
+import { isTokenValid } from "../utils/auth";
 
 export default function Login() {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [forgotForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
+
+  // Auto-login: if a valid token exists, skip straight to dashboard
+  useEffect(() => {
+    if (isTokenValid()) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [navigate]);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotStep, setForgotStep] = useState(1);
   const [forgotEmail, setForgotEmail] = useState("");

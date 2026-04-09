@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { isTokenValid } from "../utils/auth";
 
 /* ── DATA ── */
 const features = [

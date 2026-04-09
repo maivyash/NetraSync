@@ -1,11 +1,20 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Form, Input, Select, message } from "antd";
 import { useNavigate } from "react-router-dom";
+import { isTokenValid } from "../utils/auth";
 
 const { Option } = Select;
 
 export default function Register() {
   const navigate = useNavigate();
+
+  // Auto-login: if a valid token exists, skip straight to dashboard
+  useEffect(() => {
+    if (isTokenValid()) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [navigate]);
+
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState(null);

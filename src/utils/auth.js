@@ -61,6 +61,26 @@ export const logout = () => {
 };
 
 /**
+ * Check if the stored JWT token is valid (exists + not expired).
+ * Used for auto-login: if token is valid, skip login/register pages.
+ */
+export const isTokenValid = () => {
+    const token = getToken();
+    if (!token) return false;
+
+    try {
+        const parts = token.split(".");
+        if (parts.length !== 3) return false;
+
+        const payload = JSON.parse(atob(parts[1]));
+        const expiryTime = payload.exp * 1000;
+        return Date.now() < expiryTime;
+    } catch {
+        return false;
+    }
+};
+
+/**
  * Check if token is about to expire (within 1 hour)
  */
 export const isTokenExpiringSoon = () => {
