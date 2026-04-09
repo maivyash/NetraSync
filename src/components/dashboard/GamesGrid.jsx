@@ -2,11 +2,12 @@
  * GamesGrid — Renders the therapy games section with heading + card grid.
  * Clicking PLAY navigates to the game's own route.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { games } from "../../data/dashboardData";
 import GameCard from "./GameCard";
 import { CloseOutlined } from "@ant-design/icons";
+import { getScoreSummary } from "../../utils/scoreApi";
 
 const PLAYABLE = new Set(["orb-drive", "fusion-hoops"]);
 
@@ -15,6 +16,20 @@ export default function GamesGrid() {
   const [activeGame, setActiveGame] = useState(null);
   const [hoveredGame, setHoveredGame] = useState(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [gamePoints, setGamePoints] = useState({});
+
+  useEffect(() => {
+    // Fetch score summary and aggregate points per game
+    getScoreSummary().then(res => {
+      if (res && res.success && res.perGame) {
+        const pointsMap = {};
+        res.perGame.forEach(g => {
+          pointsMap[g.gameName] = (pointsMap[g.gameName] || 0) + g.totalPoints;
+        });
+        setGamePoints(pointsMap);
+      }
+    }).catch(err => console.error("Error fetching score summary:", err));
+  }, []);
 
   const handlePlay = (gameId) => {
     if (PLAYABLE.has(gameId)) {
@@ -57,6 +72,7 @@ export default function GamesGrid() {
           <GameCard
             key={g.id}
             game={g}
+            earnedPoints={gamePoints[g.id] || 0}
             isActive={activeGame === g.id}
             isHovered={hoveredGame === g.id}
             onToggle={() => setActiveGame(g.id === activeGame ? null : g.id)}

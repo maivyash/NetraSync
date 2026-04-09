@@ -13,6 +13,7 @@
  */
 export default function GameCard({
   game: g,
+  earnedPoints = 0,
   isActive,
   isHovered,
   onToggle,
@@ -67,21 +68,20 @@ export default function GameCard({
         marginBottom: 14
       }}>{g.desc}</p>
 
-      {/* Progress bar */}
-      <div style={{ marginBottom: 12 }}>
+      {/* Total Points */}
+      <div style={{ marginBottom: 16 }}>
         <div style={{
-          display: "flex", justifyContent: "space-between",
-          marginBottom: 6, fontSize: "0.7rem"
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "6px 12px", borderRadius: 8,
+          background: `linear-gradient(90deg, ${g.color}15, transparent)`,
+          borderLeft: `2px solid ${g.color}`,
         }}>
-          <span style={{ color: "var(--text-muted)" }}>Progress</span>
-          <span style={{ color: g.color, fontFamily: "var(--font-heading)" }}>{g.progress}%</span>
-        </div>
-        <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)" }}>
-          <div style={{
-            height: "100%", width: `${g.progress}%`, borderRadius: 2,
-            background: `linear-gradient(90deg, ${g.color}, ${g.color}88)`,
-            boxShadow: `0 0 8px ${g.color}50`,
-          }} />
+          <span style={{ color: "var(--text-muted)", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: 0.8 }}>
+            Total Points Earned:
+          </span>
+          <span style={{ color: g.color, fontFamily: "var(--font-heading)", fontSize: "0.9rem", fontWeight: 700 }}>
+            {earnedPoints.toLocaleString()}
+          </span>
         </div>
       </div>
 
