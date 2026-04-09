@@ -40,6 +40,12 @@ export const games = [
     color: "#ec4899", difficulty: "Easy",
     desc: "Peripheral awareness drills that expand visual field detection range.",
   },
+  {
+    id: "shape-match", icon: "🧩", title: "Shape Match",
+    type: "Visual Motor Integration", progress: 0, xp: 0,
+    color: "#00ff88", difficulty: "Beginner",
+    desc: "Drag and drop solid objects into their corresponding outlines to build spatial targeting.",
+  },
 ];
 
 export const metrics = [

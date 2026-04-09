@@ -6,6 +6,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import PlayOrbDrive from "./pages/PlayOrbDrive";
 import PlayFusionHoops from "./pages/PlayFusionHoops";
+import PlayShapeMatch from "./pages/PlayShapeMatch";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./App.css";
 
@@ -35,6 +36,7 @@ function App() {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/play/orb-drive" element={<ProtectedRoute><PlayOrbDrive /></ProtectedRoute>} />
           <Route path="/play/fusion-hoops" element={<ProtectedRoute><PlayFusionHoops /></ProtectedRoute>} />
+          <Route path="/play/shape-match" element={<ProtectedRoute><PlayShapeMatch /></ProtectedRoute>} />
           <Route path="/teen" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
