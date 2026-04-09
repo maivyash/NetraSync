@@ -210,7 +210,9 @@ export default function Register() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "Registration failed");
+        throw new Error(data || "Registration failed");
+        console.log(data);
+
       }
 
       message.success({

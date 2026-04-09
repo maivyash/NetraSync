@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import userRoutes from "./routes/userRoutes.js";
+import scoreRoutes from "./routes/scoreRoutes.js";
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use("/api", userRoutes);
+app.use("/api", scoreRoutes);
 
 // Root route
 app.get("/", (req, res) => {
@@ -36,6 +38,11 @@ app.get("/", (req, res) => {
             users: "GET /api/users",
             user: "GET /api/users/:id",
             deleteUser: "DELETE /api/users/:id",
+            submitScore: "POST /api/scores",
+            myScores: "GET /api/scores/me",
+            scoreSummary: "GET /api/scores/me/summary",
+            datewiseScores: "GET /api/scores/me/datewise?days=30",
+            gameScores: "GET /api/scores/me/game/:gameName",
         },
     });
 });

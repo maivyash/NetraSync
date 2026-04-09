@@ -20,6 +20,7 @@ import {
   stopAll,
 } from "./orbDriveAudio";
 import { recordDailyPracticeScore } from "../utils/weeklyProgress";
+import { submitScore } from "../utils/scoreApi";
 
 const BASE_SPEED = 60;
 const MAX_SPEED = 220;
@@ -308,6 +309,24 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
       score: practiceScore,
     });
 
+    // ── Submit score to SQL backend ──
+    submitScore({
+      gameName: "orb-drive",
+      difficulty: modeKey,
+      timeTaken: raceTimeSec,
+      rawScore: practiceScore,
+      avgAlignment: avgAlign,
+      maxSpeed: maxSpd,
+      focusBonus: bonusPct,
+    }).then((resp) => {
+      if (resp.success) {
+        console.log(`✅ Score saved: ${resp.points} pts (×${resp.difficultyMultiplier} ${resp.difficulty})`);
+        setRaceResult((prev) => prev ? { ...prev, serverPoints: resp.points } : prev);
+      } else {
+        console.warn("Score save failed:", resp.error);
+      }
+    }).catch((err) => console.warn("Score submit error:", err));
+
     setRaceResult({
       raceTimeSec,
       avgAlignment: avgAlign,
@@ -316,6 +335,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
       trackMeters: mode.trackLength,
       difficulty: mode.label,
       bestTimeSec,
+      serverPoints: null, // will be updated async
     });
     setResultOpen(true);
 
@@ -602,8 +622,14 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
                 <div className="orbdrive-resultValue">{raceResult.difficulty}</div>
               </div>
               <div className="orbdrive-resultStat">
-                <div className="orbdrive-resultLabel">BEST SCORE</div>
+                <div className="orbdrive-resultLabel">BEST TIME</div>
                 <div className="orbdrive-resultValue" style={{color: '#ffcc00'}}>{formatRaceTime(raceResult.bestTimeSec)}</div>
+              </div>
+              <div className="orbdrive-resultStat">
+                <div className="orbdrive-resultLabel">POINTS EARNED</div>
+                <div className="orbdrive-resultValue" style={{color: '#00ff88', fontSize: '1.3em'}}>
+                  {raceResult.serverPoints != null ? `🏆 ${raceResult.serverPoints}` : '⏳'}
+                </div>
               </div>
             </div>
 

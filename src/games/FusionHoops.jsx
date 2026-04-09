@@ -12,6 +12,7 @@ import {
   playBallBounce,
 } from "./FusionHoopsAudio";
 import { recordDailyPracticeScore } from "../utils/weeklyProgress";
+import { submitScore } from "../utils/scoreApi";
 
 /* ---- court / level config ---- */
 const COURTS = [
@@ -133,6 +134,8 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
   }, []);
 
   /* ---- end-of-game popup phase ---- */
+  const [earnedPoints, setEarnedPoints] = useState(null);
+
   useEffect(() => {
     if (!gameOver) return;
 
@@ -146,6 +149,29 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
         gameId: "fusion-hoops",
         score: practiceScore,
       });
+
+      // Map court index to difficulty for scoring
+      const diffMap = ["beginner", "intermediate", "advanced"];
+      const finalDifficulty = diffMap[Math.min(courtIdx, 2)];
+      const timeTaken = GAME_TIME - timeLeft;
+
+      // Submit score to SQL backend
+      submitScore({
+        gameName: "fusion-hoops",
+        difficulty: finalDifficulty,
+        timeTaken,
+        rawScore: practiceScore,
+        avgAlignment: accuracy,
+        maxSpeed: 0,
+        focusBonus: Math.round(scoreNormalized),
+      }).then((resp) => {
+        if (resp.success) {
+          console.log(`\u2705 FusionHoops score saved: ${resp.points} pts`);
+          setEarnedPoints(resp.points);
+        } else {
+          console.warn("Score save failed:", resp.error);
+        }
+      }).catch((err) => console.warn("Score submit error:", err));
 
       sessionLoggedRef.current = true;
     }
@@ -406,6 +432,12 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span className="fh-end-label">TIME TAKEN</span>
                 <span className="fh-end-val">{GAME_TIME - timeLeft}s</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(0,255,136,0.3)' }}>
+                <span className="fh-end-label" style={{ color: '#00ff88', fontWeight: 700, fontSize: '1rem' }}>POINTS EARNED</span>
+                <span className="fh-end-val" style={{ color: '#00ff88', fontWeight: 900, fontSize: '1.2rem' }}>
+                  {earnedPoints != null ? `\ud83c\udfc6 ${earnedPoints}` : '\u23f3'}
+                </span>
               </div>
             </div>
             <div className="fh-end-btns">

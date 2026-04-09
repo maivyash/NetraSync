@@ -43,7 +43,7 @@ export default function Dashboard() {
               }}>{userName}</span>
             </h1>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-              Day 14 of your therapy protocol · 7-day streak 🔥
+              Lets Build YOu Vision, This is our Mission
             </p>
           </div>
         </div>
@@ -57,9 +57,9 @@ export default function Dashboard() {
       </div>
 
       {/* Profile Modal */}
-      <ProfileModal 
-        isOpen={profileOpen} 
-        onClose={() => setProfileOpen(false)} 
+      <ProfileModal
+        isOpen={profileOpen}
+        onClose={() => setProfileOpen(false)}
         userName={userName}
       />
     </div>

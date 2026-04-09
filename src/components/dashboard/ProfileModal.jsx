@@ -1,5 +1,6 @@
 /**
- * ProfileModal — User profile popup with progress chart, streak, and action buttons.
+ * ProfileModal — User profile popup with score worm graph, game-wise breakdown,
+ * total points summary, weekly streak, and action buttons.
  */
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -10,15 +11,56 @@ import {
   PlayCircleOutlined,
   LogoutOutlined,
   ExclamationCircleOutlined,
+  TrophyOutlined,
 } from "@ant-design/icons";
 import { logout } from "../../utils/auth";
 import { getCurrentWeekProgress } from "../../utils/weeklyProgress";
+import { getDatewiseScores, getScoreSummary } from "../../utils/scoreApi";
+
+// ── Color palette ────────────────────────────────────────────
+const COLORS = {
+  cyan: "#00f5ff",
+  purple: "#a855f7",
+  green: "#00ff88",
+  orange: "#ffb11a",
+  red: "#ef4444",
+  gold: "#ffcc00",
+};
+
+const GAME_COLORS = {
+  "orb-drive": COLORS.cyan,
+  "fusion-hoops": COLORS.purple,
+};
+
+const GAME_LABELS = {
+  "orb-drive": "OrbDrive",
+  "fusion-hoops": "FusionHoops",
+};
+
+// ── Helpers ──────────────────────────────────────────────────
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  return `${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+function formatDateFull(dateStr) {
+  const d = new Date(dateStr);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]}`;
+}
 
 export default function ProfileModal({ isOpen, onClose, userName }) {
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [hasReachedEnd, setHasReachedEnd] = useState(false);
   const scrollRef = useRef(null);
+
+  // ── Scoring state ──────────────────────────────────────────
+  const [scoreSummary, setScoreSummary] = useState(null);
+  const [datewiseData, setDatewiseData] = useState(null);
+  const [scoreLoading, setScoreLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("worm"); // "worm" | "games"
+  const [hoveredPoint, setHoveredPoint] = useState(null);
 
   // Prevent background scroll when modal is open
   useEffect(() => {
@@ -32,6 +74,16 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
         const canScroll = node.scrollHeight - node.clientHeight > 8;
         setHasReachedEnd(!canScroll);
       });
+
+      // Fetch scoring data from DB
+      setScoreLoading(true);
+      Promise.all([getScoreSummary(), getDatewiseScores(30)])
+        .then(([summaryResp, datewiseResp]) => {
+          if (summaryResp.success) setScoreSummary(summaryResp);
+          if (datewiseResp.success) setDatewiseData(datewiseResp);
+        })
+        .catch((err) => console.warn("Score fetch error:", err))
+        .finally(() => setScoreLoading(false));
     } else {
       document.body.style.overflow = "auto";
     }
@@ -41,7 +93,6 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
   }, [isOpen]);
 
   const handleLogout = () => {
-    // Clear all auth data using the utility and redirect
     logout();
     navigate("/login");
   };
@@ -54,7 +105,6 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
 
   const userId = window.localStorage.getItem("userId");
   const weekProgress = getCurrentWeekProgress(userId);
-  const playedPoints = weekProgress.filter((item) => typeof item.value === "number");
   const completedDays = weekProgress.filter((day) => day.hasData).length;
   const currentStreak = (() => {
     let streak = 0;
@@ -67,49 +117,94 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
     return streak;
   })();
 
-  const minValue = 0; // Always start from 0
-  const maxScale = 100; // Always scale to 100
-  const svgWidth = 320;
-  const svgHeight = 200;
-  const padding = { top: 20, bottom: 40, left: 45, right: 20 };
-  const graphWidth = svgWidth - padding.left - padding.right;
-  const graphHeight = svgHeight - padding.top - padding.bottom;
-  const pointSpacing = graphWidth / (weekProgress.length - 1);
+  // ── Worm graph data ────────────────────────────────────────
+  const dailyTotals = datewiseData?.dailyTotals || [];
+  const perGamePerDay = datewiseData?.perGamePerDay || [];
 
-  // Calculate SVG points for smooth line chart
-  const points = weekProgress.map((item, index) => {
-    const x = padding.left + index * pointSpacing;
-    const value = typeof item.value === "number" ? item.value : null;
-    if (value === null) {
-      return { x, y: null, value: null };
-    }
-    const normalized = (value - minValue) / (maxScale - minValue);
-    const y = padding.top + graphHeight - normalized * graphHeight;
-    return { x, y, value };
+  // Build game-specific series from perGamePerDay
+  const gameNames = [...new Set(perGamePerDay.map((r) => r.gameName))];
+  const gameSeries = {};
+  gameNames.forEach((gn) => {
+    gameSeries[gn] = perGamePerDay
+      .filter((r) => r.gameName === gn)
+      .map((r) => ({ date: r.date, points: r.totalPoints, sessions: r.sessions }));
   });
-  const chartPoints = points.filter((point) => typeof point.value === "number");
 
-  // Create smooth curve path (using quadratic bezier)
-  let pathData = "";
-  if (chartPoints.length > 0) {
-    pathData = `M ${chartPoints[0].x} ${chartPoints[0].y}`;
+  // ── SVG Worm Graph ─────────────────────────────────────────
+  const svgWidth = 340;
+  const svgHeight = 180;
+  const pad = { top: 20, bottom: 36, left: 42, right: 16 };
+  const gW = svgWidth - pad.left - pad.right;
+  const gH = svgHeight - pad.top - pad.bottom;
+
+  const maxPts = Math.max(10, ...dailyTotals.map((d) => d.totalPoints));
+
+  // Build SVG points for daily totals (the main worm line)
+  const wormPoints = dailyTotals.map((d, i) => {
+    const x = pad.left + (dailyTotals.length > 1 ? (i / (dailyTotals.length - 1)) * gW : gW / 2);
+    const y = pad.top + gH - (d.totalPoints / maxPts) * gH;
+    return { x, y, ...d };
+  });
+
+  // Smooth path helper
+  function smoothPath(points) {
+    if (points.length === 0) return "";
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const mx = (prev.x + curr.x) / 2;
+      const my = (prev.y + curr.y) / 2;
+      d += ` Q ${prev.x} ${prev.y}, ${mx} ${my}`;
+    }
+    if (points.length > 1) {
+      const last = points[points.length - 1];
+      d += ` T ${last.x} ${last.y}`;
+    }
+    return d;
   }
-  for (let i = 1; i < chartPoints.length; i++) {
-    const prev = chartPoints[i - 1];
-    const curr = chartPoints[i];
-    const midX = (prev.x + curr.x) / 2;
-    const midY = (prev.y + curr.y) / 2;
-    pathData += ` Q ${prev.x} ${prev.y}, ${midX} ${midY}`;
-  }
-  if (chartPoints.length > 1) {
-    const lastPoint = chartPoints[chartPoints.length - 1];
-    pathData += ` T ${lastPoint.x} ${lastPoint.y}`;
-  }
+
+  // Build per-game worm lines
+  const gameWormLines = {};
+  gameNames.forEach((gn) => {
+    const series = gameSeries[gn];
+    const pts = series.map((s, i) => {
+      const x = pad.left + (series.length > 1 ? (i / (series.length - 1)) * gW : gW / 2);
+      const y = pad.top + gH - (s.points / maxPts) * gH;
+      return { x, y, ...s };
+    });
+    gameWormLines[gn] = pts;
+  });
+
+  // Y-axis grid
+  const ySteps = [0, 0.25, 0.5, 0.75, 1.0];
+
+  // ── Score summary stats ────────────────────────────────────
+  const total = scoreSummary?.total || {};
+  const perGame = scoreSummary?.perGame || [];
 
   const handleScroll = (event) => {
     const node = event.currentTarget;
     const isAtBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 8;
     setHasReachedEnd(isAtBottom);
+  };
+
+  // ── Glassmorphism card style ───────────────────────────────
+  const glassCard = {
+    background: "rgba(0,245,255,0.04)",
+    border: "1px solid rgba(0,245,255,0.12)",
+    borderRadius: 10,
+    padding: "14px 12px",
+    marginBottom: 14,
+  };
+
+  const statBox = {
+    textAlign: "center",
+    padding: "10px 6px",
+    background: "rgba(255,255,255,0.03)",
+    borderRadius: 8,
+    border: "1px solid rgba(255,255,255,0.06)",
   };
 
   return (
@@ -126,7 +221,7 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
         }}
       />
 
-      {/* Modal - Compact and responsive */}
+      {/* Modal */}
       <div
         style={{
           position: "fixed",
@@ -135,8 +230,8 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
           transform: "translate(-50%, -50%)",
           zIndex: 201,
           width: "calc(100% - 32px)",
-          maxWidth: 400,
-          maxHeight: "90vh",
+          maxWidth: 420,
+          maxHeight: "92vh",
           background: "linear-gradient(135deg, rgba(5,8,16,0.98), rgba(15,20,35,0.98))",
           border: "1px solid rgba(0,245,255,0.3)",
           borderRadius: 16,
@@ -184,7 +279,7 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
           }}
         >
           {/* Profile Header */}
-          <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
             <div
               style={{
                 width: 50,
@@ -195,7 +290,7 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: 28,
-                margin: "0 auto 10px",
+                margin: "0 auto 8px",
                 boxShadow: "0 0 20px rgba(0,245,255,0.4)",
               }}
             >
@@ -211,165 +306,381 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
             >
               {userName || "Patient"}
             </h2>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>
-              Level 7 • Commander
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", marginBottom: 0 }}>
+              {total.totalGames ? `${total.totalGames} games played` : "Welcome to NetraSync"}
             </p>
           </div>
 
-          {/* Progress Section */}
-          <div style={{ marginBottom: 18 }}>
-            <h3
-              style={{
-                fontFamily: "var(--font-heading)",
-                fontSize: "0.85rem",
-                letterSpacing: 0.5,
-                color: "#00f5ff",
-                marginBottom: 12,
-                textTransform: "uppercase",
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <LineChartOutlined />
-                Weekly Progress
+          {/* ═══════════════════════════════════════════════════
+              TOTAL SCORE BANNER
+             ═══════════════════════════════════════════════════ */}
+          <div
+            style={{
+              background: "linear-gradient(135deg, rgba(0,255,136,0.12), rgba(0,245,255,0.08))",
+              border: "1px solid rgba(0,255,136,0.25)",
+              borderRadius: 12,
+              padding: "16px 14px",
+              marginBottom: 14,
+              textAlign: "center",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 6 }}>
+              <TrophyOutlined style={{ color: COLORS.gold, fontSize: 22 }} />
+              <span style={{ fontFamily: "var(--font-heading)", fontSize: "0.75rem", color: COLORS.gold, letterSpacing: 1, textTransform: "uppercase" }}>
+                Total Score
               </span>
-            </h3>
-
-            {/* Line Chart - Compact */}
+            </div>
             <div
               style={{
-                background: "rgba(0,245,255,0.05)",
-                border: "1px solid rgba(0,245,255,0.15)",
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 10,
+                fontFamily: "var(--font-heading)",
+                fontSize: "2.2rem",
+                fontWeight: 900,
+                color: COLORS.green,
+                lineHeight: 1,
+                textShadow: "0 0 20px rgba(0,255,136,0.5)",
               }}
             >
-              <svg
-                width="100%"
-                height="auto"
-                viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                preserveAspectRatio="xMidYMid meet"
-                style={{ display: "block", margin: "0 auto", minHeight: 220 }}
-              >
-                {/* Grid lines for Y-axis (0, 25, 50, 75, 100) */}
-                {[0, 25, 50, 75, 100].map((val) => {
-                  const y = padding.top + graphHeight - (val / maxScale) * graphHeight;
-                  return (
-                    <g key={`grid-${val}`}>
-                      <line
-                        x1={padding.left}
-                        y1={y}
-                        x2={svgWidth - padding.right}
-                        y2={y}
-                        stroke="rgba(0,245,255,0.1)"
-                        strokeWidth="1"
-                        strokeDasharray="3,3"
-                      />
-                      {/* Y-axis labels */}
-                      <text
-                        x={padding.left - 8}
-                        y={y + 4}
-                        fontSize="11"
-                        fill="rgba(0,245,255,0.5)"
-                        textAnchor="end"
-                        fontFamily="var(--font-heading)"
-                      >
-                        {val}
-                      </text>
-                    </g>
-                  );
-                })}
-
-                {/* X-axis */}
-                <line
-                  x1={padding.left}
-                  y1={padding.top + graphHeight}
-                  x2={svgWidth - padding.right}
-                  y2={padding.top + graphHeight}
-                  stroke="rgba(0,245,255,0.4)"
-                  strokeWidth="2"
-                />
-
-                {/* Y-axis */}
-                <line
-                  x1={padding.left}
-                  y1={padding.top}
-                  x2={padding.left}
-                  y2={padding.top + graphHeight}
-                  stroke="rgba(0,245,255,0.4)"
-                  strokeWidth="2"
-                />
-
-                {/* Smooth line path */}
-                {chartPoints.length > 1 && (
-                  <path
-                    d={pathData}
-                    fill="none"
-                    stroke="#00f5ff"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    filter="drop-shadow(0 0 3px rgba(0,245,255,0.6))"
-                  />
-                )}
-
-                {/* Data points */}
-                {chartPoints.map((p, i) => (
-                  <circle
-                    key={`point-${i}`}
-                    cx={p.x}
-                    cy={p.y}
-                    r="3.5"
-                    fill="#00f5ff"
-                    stroke="#00f5ff"
-                    strokeWidth="0.5"
-                    filter="drop-shadow(0 0 4px rgba(0,245,255,0.8))"
-                  />
-                ))}
-
-                {/* Day labels (X-axis) */}
-                {weekProgress.map((day, i) => {
-                  const x = padding.left + i * pointSpacing;
-                  return (
-                    <text
-                      key={`day-${i}`}
-                      x={x}
-                      y={svgHeight - 8}
-                      fontSize="11"
-                      fill="rgba(0,245,255,0.6)"
-                      textAnchor="middle"
-                      fontFamily="var(--font-heading)"
-                    >
-                      {day.dayLabel}
-                    </text>
-                  );
-                })}
-              </svg>
-
-              {playedPoints.length === 0 && (
-                <p
-                  style={{
-                    marginTop: 8,
-                    marginBottom: 0,
-                    textAlign: "center",
-                    color: "var(--text-secondary)",
-                    fontSize: "0.78rem",
-                  }}
-                >
-                  No practice logged yet this week.
-                </p>
-              )}
+              {scoreLoading ? "..." : (total.totalPoints || 0).toLocaleString()}
             </div>
-
+            <div style={{ color: "var(--text-secondary)", fontSize: "0.75rem", marginTop: 4 }}>
+              points earned across all games
+            </div>
           </div>
 
-          {/* Weekly Streak */}
+          {/* ═══════════════════════════════════════════════════
+              QUICK STATS ROW
+             ═══════════════════════════════════════════════════ */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+            <div style={statBox}>
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: "1.3rem", fontWeight: 800, color: COLORS.cyan }}>
+                {total.totalGames || 0}
+              </div>
+              <div style={{ fontSize: "0.65rem", color: "var(--text-secondary)", marginTop: 2 }}>Games</div>
+            </div>
+            <div style={statBox}>
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: "1.3rem", fontWeight: 800, color: COLORS.purple }}>
+                {total.bestPoints || 0}
+              </div>
+              <div style={{ fontSize: "0.65rem", color: "var(--text-secondary)", marginTop: 2 }}>Best Score</div>
+            </div>
+            <div style={statBox}>
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: "1.3rem", fontWeight: 800, color: COLORS.orange }}>
+                {total.avgPoints || 0}
+              </div>
+              <div style={{ fontSize: "0.65rem", color: "var(--text-secondary)", marginTop: 2 }}>Avg Score</div>
+            </div>
+          </div>
+
+          {/* ═══════════════════════════════════════════════════
+              TAB SWITCHER: Worm Graph | Game Breakdown
+             ═══════════════════════════════════════════════════ */}
+          <div style={{ display: "flex", gap: 0, marginBottom: 12, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(0,245,255,0.2)" }}>
+            {[
+              { key: "worm", label: "📈 Score Trend" },
+              { key: "games", label: "🎮 Per Game" },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  flex: 1,
+                  padding: "8px 0",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-heading)",
+                  fontSize: "0.72rem",
+                  letterSpacing: 0.5,
+                  transition: "all 0.2s",
+                  background: activeTab === tab.key ? "rgba(0,245,255,0.15)" : "transparent",
+                  color: activeTab === tab.key ? COLORS.cyan : "var(--text-secondary)",
+                  borderBottom: activeTab === tab.key ? `2px solid ${COLORS.cyan}` : "2px solid transparent",
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ═══════════════════════════════════════════════════
+              WORM GRAPH (Score Trend Over Time)
+             ═══════════════════════════════════════════════════ */}
+          {activeTab === "worm" && (
+            <div style={glassCard}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <LineChartOutlined style={{ color: COLORS.cyan, fontSize: 14 }} />
+                <span style={{ fontFamily: "var(--font-heading)", fontSize: "0.75rem", color: COLORS.cyan, letterSpacing: 0.5 }}>
+                  DAILY SCORE TREND (LAST 30 DAYS)
+                </span>
+              </div>
+
+              {scoreLoading ? (
+                <div style={{ textAlign: "center", color: "var(--text-secondary)", padding: 20, fontSize: "0.85rem" }}>
+                  Loading scores...
+                </div>
+              ) : dailyTotals.length === 0 ? (
+                <div style={{ textAlign: "center", color: "var(--text-secondary)", padding: 20, fontSize: "0.82rem" }}>
+                  No scores recorded yet. Play a game to see your progress!
+                </div>
+              ) : (
+                <>
+                  {/* SVG Worm Graph */}
+                  <svg
+                    width="100%"
+                    height="auto"
+                    viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                    preserveAspectRatio="xMidYMid meet"
+                    style={{ display: "block", minHeight: 180 }}
+                  >
+                    {/* Gradient fill under the worm line */}
+                    <defs>
+                      <linearGradient id="wormFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={COLORS.green} stopOpacity="0.3" />
+                        <stop offset="100%" stopColor={COLORS.green} stopOpacity="0.02" />
+                      </linearGradient>
+                      <linearGradient id="orbFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={COLORS.cyan} stopOpacity="0.2" />
+                        <stop offset="100%" stopColor={COLORS.cyan} stopOpacity="0.01" />
+                      </linearGradient>
+                      <linearGradient id="hoopsFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={COLORS.purple} stopOpacity="0.2" />
+                        <stop offset="100%" stopColor={COLORS.purple} stopOpacity="0.01" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Y-axis grid lines */}
+                    {ySteps.map((pct) => {
+                      const val = Math.round(maxPts * pct);
+                      const y = pad.top + gH - pct * gH;
+                      return (
+                        <g key={`yg-${pct}`}>
+                          <line
+                            x1={pad.left} y1={y}
+                            x2={svgWidth - pad.right} y2={y}
+                            stroke="rgba(0,245,255,0.08)"
+                            strokeWidth="1"
+                            strokeDasharray="3,3"
+                          />
+                          <text
+                            x={pad.left - 6} y={y + 3}
+                            fontSize="9" fill="rgba(0,245,255,0.4)"
+                            textAnchor="end"
+                            fontFamily="var(--font-heading)"
+                          >
+                            {val}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Axes */}
+                    <line
+                      x1={pad.left} y1={pad.top + gH}
+                      x2={svgWidth - pad.right} y2={pad.top + gH}
+                      stroke="rgba(0,245,255,0.3)" strokeWidth="1.5"
+                    />
+                    <line
+                      x1={pad.left} y1={pad.top}
+                      x2={pad.left} y2={pad.top + gH}
+                      stroke="rgba(0,245,255,0.3)" strokeWidth="1.5"
+                    />
+
+                    {/* Per-game worm lines (behind total) */}
+                    {gameNames.map((gn) => {
+                      const pts = gameWormLines[gn];
+                      if (pts.length < 2) return null;
+                      const color = GAME_COLORS[gn] || COLORS.cyan;
+                      return (
+                        <path
+                          key={`game-line-${gn}`}
+                          d={smoothPath(pts)}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth="1.5"
+                          strokeDasharray="4,3"
+                          strokeLinecap="round"
+                          opacity="0.5"
+                        />
+                      );
+                    })}
+
+                    {/* Total worm line — filled area */}
+                    {wormPoints.length > 1 && (
+                      <>
+                        <path
+                          d={
+                            smoothPath(wormPoints) +
+                            ` L ${wormPoints[wormPoints.length - 1].x} ${pad.top + gH}` +
+                            ` L ${wormPoints[0].x} ${pad.top + gH} Z`
+                          }
+                          fill="url(#wormFill)"
+                        />
+                        <path
+                          d={smoothPath(wormPoints)}
+                          fill="none"
+                          stroke={COLORS.green}
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          filter="drop-shadow(0 0 4px rgba(0,255,136,0.6))"
+                        />
+                      </>
+                    )}
+
+                    {/* Data points */}
+                    {wormPoints.map((p, i) => (
+                      <g key={`wp-${i}`}>
+                        <circle
+                          cx={p.x} cy={p.y} r={hoveredPoint === i ? 5 : 3.5}
+                          fill={COLORS.green}
+                          stroke="#fff"
+                          strokeWidth="0.8"
+                          style={{ cursor: "pointer", transition: "r 0.2s" }}
+                          filter="drop-shadow(0 0 3px rgba(0,255,136,0.7))"
+                          onMouseEnter={() => setHoveredPoint(i)}
+                          onMouseLeave={() => setHoveredPoint(null)}
+                        />
+                        {/* Tooltip on hover */}
+                        {hoveredPoint === i && (
+                          <>
+                            <rect
+                              x={p.x - 32} y={p.y - 30}
+                              width={64} height={20}
+                              rx={4}
+                              fill="rgba(0,0,0,0.85)"
+                              stroke={COLORS.green}
+                              strokeWidth="0.5"
+                            />
+                            <text
+                              x={p.x} y={p.y - 17}
+                              fontSize="9"
+                              fill={COLORS.green}
+                              textAnchor="middle"
+                              fontFamily="var(--font-heading)"
+                              fontWeight="700"
+                            >
+                              {p.totalPoints} pts
+                            </text>
+                          </>
+                        )}
+                      </g>
+                    ))}
+
+                    {/* X-axis date labels */}
+                    {wormPoints.map((p, i) => {
+                      // Show max 8 labels to avoid overlap
+                      const showLabel = dailyTotals.length <= 8 || i % Math.ceil(dailyTotals.length / 7) === 0 || i === dailyTotals.length - 1;
+                      if (!showLabel) return null;
+                      return (
+                        <text
+                          key={`xl-${i}`}
+                          x={p.x}
+                          y={svgHeight - 6}
+                          fontSize="8"
+                          fill="rgba(0,245,255,0.5)"
+                          textAnchor="middle"
+                          fontFamily="var(--font-heading)"
+                        >
+                          {formatDate(p.date)}
+                        </text>
+                      );
+                    })}
+                  </svg>
+
+                  {/* Legend */}
+                  <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <div style={{ width: 14, height: 3, background: COLORS.green, borderRadius: 2 }} />
+                      <span style={{ fontSize: "0.65rem", color: "var(--text-secondary)" }}>Total</span>
+                    </div>
+                    {gameNames.map((gn) => (
+                      <div key={gn} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <div style={{ width: 14, height: 2, background: GAME_COLORS[gn] || COLORS.cyan, borderRadius: 2, borderTop: "1px dashed " + (GAME_COLORS[gn] || COLORS.cyan) }} />
+                        <span style={{ fontSize: "0.65rem", color: "var(--text-secondary)" }}>{GAME_LABELS[gn] || gn}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════
+              PER-GAME BREAKDOWN TAB
+             ═══════════════════════════════════════════════════ */}
+          {activeTab === "games" && (
+            <div style={glassCard}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+                <TrophyOutlined style={{ color: COLORS.gold, fontSize: 14 }} />
+                <span style={{ fontFamily: "var(--font-heading)", fontSize: "0.75rem", color: COLORS.gold, letterSpacing: 0.5 }}>
+                  GAME-WISE SCORES
+                </span>
+              </div>
+
+              {scoreLoading ? (
+                <div style={{ textAlign: "center", color: "var(--text-secondary)", padding: 20, fontSize: "0.85rem" }}>
+                  Loading...
+                </div>
+              ) : perGame.length === 0 ? (
+                <div style={{ textAlign: "center", color: "var(--text-secondary)", padding: 20, fontSize: "0.82rem" }}>
+                  No game data yet. Complete a game to see stats!
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {perGame.map((g, i) => {
+                    const color = GAME_COLORS[g.gameName] || COLORS.cyan;
+                    const diffEmoji = { beginner: "🟢", intermediate: "🟡", advanced: "🔴" };
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          background: "rgba(255,255,255,0.03)",
+                          border: `1px solid ${color}22`,
+                          borderRadius: 8,
+                          padding: "10px 12px",
+                          borderLeft: `3px solid ${color}`,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <span style={{ fontFamily: "var(--font-heading)", fontSize: "0.8rem", color, fontWeight: 700 }}>
+                            {GAME_LABELS[g.gameName] || g.gameName}
+                          </span>
+                          <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>
+                            {diffEmoji[g.difficulty] || "⚪"} {g.difficulty}
+                          </span>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
+                          {[
+                            { label: "Played", val: g.gamesPlayed },
+                            { label: "Total", val: g.totalPoints },
+                            { label: "Best", val: g.bestPoints, highlight: true },
+                            { label: "Best Time", val: `${g.bestTime}s` },
+                          ].map((s) => (
+                            <div key={s.label} style={{ textAlign: "center" }}>
+                              <div style={{
+                                fontFamily: "var(--font-heading)",
+                                fontSize: s.highlight ? "0.85rem" : "0.78rem",
+                                fontWeight: 700,
+                                color: s.highlight ? COLORS.gold : "#fff",
+                              }}>
+                                {s.val}
+                              </div>
+                              <div style={{ fontSize: "0.58rem", color: "var(--text-secondary)", marginTop: 1 }}>
+                                {s.label}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════
+              WEEKLY STREAK (existing feature, kept)
+             ═══════════════════════════════════════════════════ */}
           <div
             style={{
               background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))",
@@ -382,8 +693,8 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
           >
             <div
               style={{
-                width: 84,
-                height: 84,
+                width: 70,
+                height: 70,
                 margin: "0 auto 10px",
                 borderRadius: "50%",
                 background: "linear-gradient(180deg, #ffb11a, #ff8a00)",
@@ -398,7 +709,7 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
                 style={{
                   fontFamily: "var(--font-heading)",
                   fontWeight: 800,
-                  fontSize: "2rem",
+                  fontSize: "1.8rem",
                   color: "#fff",
                   lineHeight: 1,
                 }}
@@ -451,7 +762,7 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
             <div
               style={{
                 fontFamily: "var(--font-heading)",
-                fontSize: "1.45rem",
+                fontSize: "1.3rem",
                 color: "#fff",
                 fontWeight: 700,
                 marginBottom: 2,
@@ -488,7 +799,7 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
             </p>
           )}
 
-          {/* Action Buttons - End of content, not sticky */}
+          {/* Action Buttons */}
           <div
             style={{
               display: "flex",
