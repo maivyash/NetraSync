@@ -22,9 +22,9 @@ import {
 import { recordDailyPracticeScore } from "../utils/weeklyProgress";
 import { submitScore } from "../utils/scoreApi";
 
-const BASE_SPEED = 60;
+const BASE_SPEED = 200;
 const MAX_SPEED = 220;
-const ALIGNMENT_THRESHOLD = 45;
+const ALIGNMENT_THRESHOLD = 25;
 const MFCT_THRESHOLD = 45;
 
 const CAR_START_BOTTOM_PCT = 6;
@@ -36,8 +36,8 @@ const MODES = {
     label: "Beginner",
     desc: "Slower tunnel • Larger orb • Hold 2–3s",
     holdSeconds: 2.5,
-    orbBaseSize: 58,
-    orbMinSize: 58,
+    orbBaseSize: 88,
+    orbMinSize: 88,
     tunnelBaseMul: 0.65,
     tunnelAccelPerSec: 0,
     depthWarp: 0,
@@ -50,8 +50,8 @@ const MODES = {
     label: "Intermediate",
     desc: "Faster tunnel • Orb shrinks • Depth movement • Hold 4–5s",
     holdSeconds: 4.5,
-    orbBaseSize: 52,
-    orbMinSize: 36,
+    orbBaseSize: 80,
+    orbMinSize: 60,
     tunnelBaseMul: 1.0,
     tunnelAccelPerSec: 0.02,
     depthWarp: 1,
@@ -64,8 +64,8 @@ const MODES = {
     label: "Advanced",
     desc: "Rapid acceleration • Small orb • Sudden shifts • Hold 6–8s",
     holdSeconds: 7.0,
-    orbBaseSize: 34,
-    orbMinSize: 30,
+    orbBaseSize: 60,
+    orbMinSize: 50,
     tunnelBaseMul: 1.15,
     tunnelAccelPerSec: 0.06,
     depthWarp: 1,
@@ -287,7 +287,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
     const bonusPct = Math.max(0, Math.min(20, Math.round(avgFs * 20)));
     const maxSpd = Math.round(raceStatsRef.current.maxSpeed);
     const raceTimeSec = timeRef.current;
-    
+
     const practiceScore = Math.round(
       Math.max(
         0,
@@ -623,11 +623,11 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
               </div>
               <div className="orbdrive-resultStat">
                 <div className="orbdrive-resultLabel">BEST TIME</div>
-                <div className="orbdrive-resultValue" style={{color: '#ffcc00'}}>{formatRaceTime(raceResult.bestTimeSec)}</div>
+                <div className="orbdrive-resultValue" style={{ color: '#ffcc00' }}>{formatRaceTime(raceResult.bestTimeSec)}</div>
               </div>
               <div className="orbdrive-resultStat">
                 <div className="orbdrive-resultLabel">POINTS EARNED</div>
-                <div className="orbdrive-resultValue" style={{color: '#00ff88', fontSize: '1.3em'}}>
+                <div className="orbdrive-resultValue" style={{ color: '#00ff88', fontSize: '1.3em' }}>
                   {raceResult.serverPoints != null ? `🏆 ${raceResult.serverPoints}` : '⏳'}
                 </div>
               </div>
@@ -817,18 +817,18 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
                 <div className="finish-line" ref={finishLineRef} />
               </div>
 
-              <div 
-                className="start-line" 
-                style={{ 
-                  transform: `translateY(${progress * 800}px)`, 
-                  opacity: Math.max(0, 1 - progress * 4) 
+              <div
+                className="start-line"
+                style={{
+                  transform: `translateY(${progress * 800}px)`,
+                  opacity: Math.max(0, 1 - progress * 4)
                 }}
               >
                 <div className="start-label">START</div>
               </div>
 
-              <div 
-                className="track-road" 
+              <div
+                className="track-road"
                 aria-hidden="true"
                 style={{
                   transformOrigin: 'bottom center',
@@ -845,18 +845,18 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
                     className="track-line"
                     style={{
                       bottom: `${(i * 10 +
-                          time *
-                          carSpeed *
-                          0.09 *
-                          (mode.tunnelBaseMul + time * mode.tunnelAccelPerSec)) %
+                        time *
+                        carSpeed *
+                        0.09 *
+                        (mode.tunnelBaseMul + time * mode.tunnelAccelPerSec)) %
                         120
                         }%`,
                       "--p": i / 12,
                       "--xoff": `${mode.depthWarp
-                          ? Math.sin(time * 1.15 + i * 0.85) *
-                          (4 + speedPct * 10) *
-                          (modeKey === "advanced" ? 1.3 : 1)
-                          : 0
+                        ? Math.sin(time * 1.15 + i * 0.85) *
+                        (4 + speedPct * 10) *
+                        (modeKey === "advanced" ? 1.3 : 1)
+                        : 0
                         }px`,
                     }}
                   />
@@ -874,21 +874,21 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
                   transform: `translateX(-50%) rotate(${turnState * 10}deg) translateX(${turnState * -20}px)`
                 }}
                 aria-label="Car"
-                >
-                  <img src={carImg} alt="Player Car" className="orbdrive-car-img" />
-                  {carSpeed > 80 && focusStrength <= 0.8 && (
-                    <div className="od-exhaust-flame" aria-hidden="true" />
-                  )}
-                  {focusStrength > 0.8 && (
-                    <div className="od-nitro-flame" aria-hidden="true" />
-                  )}
-                  <div className="od-car-shadow" aria-hidden="true" />
-                </div>
+              >
+                <img src={carImg} alt="Player Car" className="orbdrive-car-img" />
+                {carSpeed > 80 && focusStrength <= 0.8 && (
+                  <div className="od-exhaust-flame" aria-hidden="true" />
+                )}
+                {focusStrength > 0.8 && (
+                  <div className="od-nitro-flame" aria-hidden="true" />
+                )}
+                <div className="od-car-shadow" aria-hidden="true" />
+              </div>
 
-                <div
-                  className="progress-bar"
-                  style={{ width: `${progress * 100}%` }}
-                />
+              <div
+                className="progress-bar"
+                style={{ width: `${progress * 100}%` }}
+              />
 
               {/* Speedometer */}
               <div className="track-hud">

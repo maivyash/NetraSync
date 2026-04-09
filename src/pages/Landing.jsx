@@ -269,10 +269,7 @@ function TiltCard({ children, color, delay, isVisible }) {
             onMouseEnter={(e) => {
                 e.currentTarget.style.boxShadow = `inset 0 1px 0 ${color}30, 0 0 30px ${color}15, 0 8px 32px rgba(0,0,0,0.5)`;
             }}
-            onMouseLeave={(e) => {
-                handleMouseLeave();
-                e.currentTarget.style.boxShadow = `inset 0 1px 0 ${color}15, 0 8px 32px rgba(0,0,0,0.5)`;
-            }}
+
         >
             {/* Top accent glow line */}
             <div style={{
