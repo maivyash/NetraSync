@@ -543,7 +543,7 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                     <div>
                       <div style={{ fontSize: "1.8rem", fontFamily: "var(--font-heading)", fontWeight: 900, color: COLORS.cyan, lineHeight: 1 }}>
-                        {alignmentData[0].alignment}%
+                        {Math.round(alignmentData[0].alignment)}%
                       </div>
                       <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: 4 }}>
                         Latest record: {formatDate(alignmentData[0].captured_at)}
@@ -630,6 +630,7 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
           <div style={{ display: "flex", gap: 0, marginBottom: 12, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(0,245,255,0.2)" }}>
             {[
               { key: "worm", label: "📈 Score Trend" },
+              { key: "calibration", label: "👁️ Alignment Trend" },
               { key: "games", label: "🎮 Per Game" },
             ].map((tab) => (
               <button
@@ -927,6 +928,159 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
                     );
                   })}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════
+              CALIBRATION WORM GRAPH (Alignment Trend Over Time)
+             ═══════════════════════════════════════════════════ */}
+          {activeTab === "calibration" && (
+            <div style={glassCard}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <EyeOutlined style={{ color: COLORS.cyan, fontSize: 14 }} />
+                <span style={{ fontFamily: "var(--font-heading)", fontSize: "0.75rem", color: COLORS.cyan, letterSpacing: 0.5 }}>
+                  EYE ALIGNMENT TREND
+                </span>
+              </div>
+
+              {alignmentLoading ? (
+                <div style={{ textAlign: "center", color: "var(--text-secondary)", padding: 20, fontSize: "0.85rem" }}>
+                  Loading calibration history...
+                </div>
+              ) : alignmentData.length === 0 ? (
+                <div style={{ textAlign: "center", color: "var(--text-secondary)", padding: 20, fontSize: "0.82rem" }}>
+                  No calibration history available.
+                </div>
+              ) : (
+                (() => {
+                  const calibrationPoints = [...alignmentData].reverse().map((d, i) => {
+                    const x = pad.left + (alignmentData.length > 1 ? (i / (alignmentData.length - 1)) * gW : gW / 2);
+                    const y = pad.top + gH - (d.alignment / 100) * gH;
+                    return { x, y, ...d };
+                  });
+
+                  return (
+                    <svg
+                      width="100%"
+                      height="auto"
+                      viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                      preserveAspectRatio="xMidYMid meet"
+                      style={{ display: "block", minHeight: 180 }}
+                    >
+                      <defs>
+                        <linearGradient id="calibFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={COLORS.cyan} stopOpacity="0.3" />
+                          <stop offset="100%" stopColor={COLORS.cyan} stopOpacity="0.02" />
+                        </linearGradient>
+                      </defs>
+
+                      {ySteps.map((pct) => {
+                        const val = Math.round(100 * pct);
+                        const y = pad.top + gH - pct * gH;
+                        return (
+                          <g key={`yg-calib-${pct}`}>
+                            <line
+                              x1={pad.left} y1={y}
+                              x2={svgWidth - pad.right} y2={y}
+                              stroke="rgba(0,245,255,0.08)"
+                              strokeWidth="1"
+                              strokeDasharray="3,3"
+                            />
+                            <text
+                              x={pad.left - 6} y={y + 3}
+                              fontSize="9" fill="rgba(0,245,255,0.4)"
+                              textAnchor="end"
+                              fontFamily="var(--font-heading)"
+                            >
+                              {val}%
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      <line x1={pad.left} y1={pad.top + gH} x2={svgWidth - pad.right} y2={pad.top + gH} stroke="rgba(0,245,255,0.3)" strokeWidth="1.5" />
+                      <line x1={pad.left} y1={pad.top} x2={pad.left} y2={pad.top + gH} stroke="rgba(0,245,255,0.3)" strokeWidth="1.5" />
+
+                      {calibrationPoints.length > 1 && (
+                        <>
+                          <path
+                            d={
+                              smoothPath(calibrationPoints) +
+                              ` L ${calibrationPoints[calibrationPoints.length - 1].x} ${pad.top + gH}` +
+                              ` L ${calibrationPoints[0].x} ${pad.top + gH} Z`
+                            }
+                            fill="url(#calibFill)"
+                          />
+                          <path
+                            d={smoothPath(calibrationPoints)}
+                            fill="none"
+                            stroke={COLORS.cyan}
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            filter="drop-shadow(0 0 4px rgba(0,245,255,0.6))"
+                          />
+                        </>
+                      )}
+
+                      {calibrationPoints.map((p, i) => (
+                        <g key={`cp-${i}`}>
+                          <circle
+                            cx={p.x} cy={p.y} r={hoveredPoint === `calib-${i}` ? 5 : 3.5}
+                            fill={COLORS.cyan}
+                            stroke="#fff"
+                            strokeWidth="0.8"
+                            style={{ cursor: "pointer", transition: "r 0.2s" }}
+                            filter="drop-shadow(0 0 3px rgba(0,245,255,0.7))"
+                            onMouseEnter={() => setHoveredPoint(`calib-${i}`)}
+                            onMouseLeave={() => setHoveredPoint(null)}
+                          />
+                          {hoveredPoint === `calib-${i}` && (
+                            <>
+                              <rect
+                                x={Math.max(pad.left, p.x - 32)} y={p.y - 30}
+                                width={64} height={20}
+                                rx={4}
+                                fill="rgba(0,0,0,0.85)"
+                                stroke={COLORS.cyan}
+                                strokeWidth="0.5"
+                              />
+                              <text
+                                x={Math.max(pad.left + 32, p.x)} y={p.y - 17}
+                                fontSize="9"
+                                fill={COLORS.cyan}
+                                textAnchor="middle"
+                                fontFamily="var(--font-heading)"
+                                fontWeight="700"
+                              >
+                                {p.alignment.toFixed(1)}%
+                              </text>
+                            </>
+                          )}
+                        </g>
+                      ))}
+
+                      {calibrationPoints.map((p, i) => {
+                        const showLabel = calibrationPoints.length <= 8 || i % Math.ceil(calibrationPoints.length / 7) === 0 || i === calibrationPoints.length - 1;
+                        if (!showLabel) return null;
+                        return (
+                          <text
+                            key={`xl-calib-${i}`}
+                            x={p.x}
+                            y={svgHeight - 6}
+                            fontSize="8"
+                            fill="rgba(0,245,255,0.5)"
+                            textAnchor="middle"
+                            fontFamily="var(--font-heading)"
+                          >
+                            {formatDate(p.captured_at)}
+                          </text>
+                        );
+                      })}
+                    </svg>
+                  );
+                })()
               )}
             </div>
           )}
