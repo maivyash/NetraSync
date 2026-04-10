@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import confetti from "canvas-confetti";
 import "../styles/orbdrive.css";
 import Track3D from "../components/Track3D";
-import carImg from "../assets/nissancar.png";
+import nissanImg from "../assets/nissancar.png";
+import porscheImg from "../assets/porsche.png";
+import ferrariImg from "../assets/ferarri.png";
+import audiImg from "../assets/audicar.png";
 import {
   startEngine,
   updateEngine,
@@ -30,6 +33,66 @@ const MFCT_THRESHOLD = 45;
 
 const CAR_START_BOTTOM_PCT = 6;
 const CAR_TRAVEL_PCT = 78;
+
+const CAR_ROSTER = [
+  {
+    id: "nissan",
+    name: "Nissan GT-R",
+    tag: "STARTER",
+    img: nissanImg,
+    unlockAfter: null,      // always unlocked
+    defaultFor: "beginner",
+    color: "#00f5ff",
+    stats: { speed: 60, handling: 75, boost: 55 },
+  },
+  {
+    id: "porsche",
+    name: "Porsche 911",
+    tag: "UNLOCK: BEGINNER",
+    img: porscheImg,
+    unlockAfter: "beginner",
+    defaultFor: "intermediate",
+    color: "#ff6b35",
+    stats: { speed: 78, handling: 85, boost: 70 },
+  },
+  {
+    id: "ferrari",
+    name: "Ferrari F40",
+    tag: "UNLOCK: INTERMEDIATE",
+    img: ferrariImg,
+    unlockAfter: "intermediate",
+    defaultFor: "advanced",
+    color: "#ef4444",
+    stats: { speed: 90, handling: 80, boost: 88 },
+  },
+  {
+    id: "audi",
+    name: "Audi R8",
+    tag: "UNLOCK: ADVANCED",
+    img: audiImg,
+    unlockAfter: "advanced",
+    defaultFor: null,
+    color: "#a855f7",
+    stats: { speed: 95, handling: 92, boost: 95 },
+  },
+];
+
+// Which difficulty levels have been beaten (stored in localStorage)
+function getUnlockedLevels() {
+  try { return JSON.parse(localStorage.getItem("orbdrive_beaten") || "[]"); }
+  catch { return []; }
+}
+function markLevelBeaten(key) {
+  const beaten = getUnlockedLevels();
+  if (!beaten.includes(key)) {
+    beaten.push(key);
+    localStorage.setItem("orbdrive_beaten", JSON.stringify(beaten));
+  }
+}
+function isCarUnlocked(car) {
+  if (!car.unlockAfter) return true;
+  return getUnlockedLevels().includes(car.unlockAfter);
+}
 
 const MODES = {
   beginner: {
@@ -58,7 +121,12 @@ const MODES = {
     depthWarp: 1,
     shiftEverySec: 0,
     trackLength: 1500,
-    turns: [{ at: 0.33, dir: 1 }, { at: 0.66, dir: -1 }],
+    turns: [
+      { at: 0.20, dir: 1 }, 
+      { at: 0.35, dir: -1 },
+      { at: 0.65, dir: -1 },
+      { at: 0.80, dir: 1 },
+    ],
   },
   advanced: {
     key: "advanced",
@@ -72,7 +140,10 @@ const MODES = {
     depthWarp: 1,
     shiftEverySec: 2.2,
     trackLength: 2000,
-    turns: [{ at: 0.25, dir: -1 }, { at: 0.5, dir: 1 }, { at: 0.75, dir: -1 }],
+    turns: [
+      { at: 0.15, dir: -1 }, { at: 0.30, dir: 1 }, { at: 0.45, dir: 1 },
+      { at: 0.60, dir: -1 }, { at: 0.75, dir: -1 }, { at: 0.90, dir: 1 }
+    ],
   },
 };
 
@@ -125,7 +196,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
   const shiftRef = useRef({ nextAt: 0, offX: 0, offY: 0 });
 
   const [running, setRunning] = useState(false);
-  const [phase, setPhase] = useState("idle"); // idle | mode | ready | countdown | running | result | resetting
+  const [phase, setPhase] = useState("idle"); // idle | carselect | mode | ready | countdown | running | result | resetting
   const [modeKey, setModeKey] = useState("beginner");
   const [countdown, setCountdown] = useState(null);
   const [orbPos, setOrbPos] = useState({ x: 50, y: 50 });
@@ -140,6 +211,8 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
   const [resultOpen, setResultOpen] = useState(false);
   const [raceResult, setRaceResult] = useState(null);
   const [resetting, setResetting] = useState(false);
+  const [selectedCar, setSelectedCar] = useState(CAR_ROSTER[0]);
+  const [hoveredCar, setHoveredCar] = useState(null);
 
   const speedPct = Math.max(0, Math.min(1, carSpeed / MAX_SPEED));
   const carBottomPct = CAR_START_BOTTOM_PCT + progress * CAR_TRAVEL_PCT;
@@ -310,6 +383,9 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
       score: practiceScore,
     });
 
+    // Mark this level as beaten for car unlocking
+    markLevelBeaten(modeKey);
+
     // ── Submit score to SQL backend ──
     submitScore({
       gameName: "orb-drive",
@@ -370,6 +446,10 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
   const beginFlow = () => {
     if (resultOpen) return;
     setResetting(false);
+    setPhase("carselect");
+  };
+
+  const confirmCarAndMode = () => {
     setPhase("mode");
   };
 
@@ -390,7 +470,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
 
   const startCountdown = () => {
     setPhase("countdown");
-    setCountdown(3);
+    setCountdown(1); // Instant start
   };
 
   useEffect(() => {
@@ -675,6 +755,92 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
         <div className="orbdrive-resetMsg">Race reset — try again!</div>
       )}
 
+      {phase === "carselect" && (
+        <div className="orbdrive-modeOverlay" role="dialog" aria-modal="true">
+          <div className="orbdrive-carSelectModal">
+            <div className="orbdrive-modeTitle">🏎️ Choose Your Car</div>
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem', marginBottom: 24, textAlign: 'center' }}>
+              Complete levels to unlock faster rides
+            </p>
+
+            <div className="orbdrive-carGrid">
+              {CAR_ROSTER.map((car) => {
+                const unlocked = isCarUnlocked(car);
+                const isSelected = selectedCar.id === car.id;
+                const isHovered = hoveredCar === car.id;
+                return (
+                  <div
+                    key={car.id}
+                    className={`orbdrive-carCard ${isSelected ? 'is-selected' : ''} ${!unlocked ? 'is-locked' : ''}`}
+                    style={{ '--car-color': car.color }}
+                    onClick={() => unlocked && setSelectedCar(car)}
+                    onMouseEnter={() => setHoveredCar(car.id)}
+                    onMouseLeave={() => setHoveredCar(null)}
+                  >
+                    {/* Lock overlay */}
+                    {!unlocked && (
+                      <div className="orbdrive-carLock">
+                        <span className="orbdrive-lockIcon">🔒</span>
+                        <span className="orbdrive-lockText">{car.tag}</span>
+                      </div>
+                    )}
+
+                    {/* Car image */}
+                    <div className="orbdrive-carImgWrap">
+                      <img
+                        src={car.img}
+                        alt={car.name}
+                        className="orbdrive-carSelectImg"
+                        style={{ opacity: unlocked ? 1 : 0.3 }}
+                      />
+                      {isSelected && unlocked && (
+                        <div className="orbdrive-carSelectedBadge">✓ SELECTED</div>
+                      )}
+                    </div>
+
+                    {/* Name */}
+                    <div className="orbdrive-carName" style={{ color: unlocked ? car.color : '#666' }}>
+                      {car.name}
+                    </div>
+
+                    {/* Stat bars */}
+                    {unlocked && (
+                      <div className="orbdrive-carStats">
+                        {Object.entries(car.stats).map(([stat, val]) => (
+                          <div key={stat} className="orbdrive-statRow">
+                            <span className="orbdrive-statLabel">{stat.toUpperCase()}</span>
+                            <div className="orbdrive-statBar">
+                              <div
+                                className="orbdrive-statFill"
+                                style={{ width: `${val}%`, background: car.color }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {!unlocked && (
+                      <div style={{ color: '#555', fontSize: '0.72rem', textAlign: 'center', marginTop: 6 }}>
+                        {car.tag}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              className="orbdrive-readyBtn"
+              style={{ marginTop: 28 }}
+              onClick={confirmCarAndMode}
+            >
+              Continue →
+            </button>
+          </div>
+        </div>
+      )}
+
       {phase === "mode" && (
         <div className="orbdrive-modeOverlay" role="dialog" aria-modal="true">
           <div className="orbdrive-modeModal">
@@ -814,6 +980,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
                 running={running}
                 playerCarRef={playerCarRef}
                 finishLineRef={finishLineRef}
+                carImg={selectedCar.img}
               />
 
               {/* Progress bar overlay */}

@@ -324,6 +324,11 @@ router.post("/auth/send-otp", async (req, res) => {
     }
 
     try {
+        const [rows] = await db.query("SELECT id FROM users WHERE email = ?", [email]);
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ success: false, error: "Email not found in our records." });
+        }
+
         const otp = String(randomInt(100000, 999999));
         const expiresAt = Date.now() + OTP_TTL_MS;
 
