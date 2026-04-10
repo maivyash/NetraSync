@@ -53,13 +53,12 @@ export default function Dashboard() {
           <GamesGrid />
         </div>
 
-        <ClinicalProgress />
       </div>
 
       {/* Profile Modal */}
-      <ProfileModal 
-        isOpen={profileOpen} 
-        onClose={() => setProfileOpen(false)} 
+      <ProfileModal
+        isOpen={profileOpen}
+        onClose={() => setProfileOpen(false)}
         userName={userName}
       />
     </div>

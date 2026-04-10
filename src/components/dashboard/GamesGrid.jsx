@@ -9,12 +9,13 @@ import GameCard from "./GameCard";
 import { CloseOutlined } from "@ant-design/icons";
 import { getScoreSummary } from "../../utils/scoreApi";
 
-const PLAYABLE = new Set(["orb-drive", "fusion-hoops", "shape-match"]);
+const PLAYABLE = new Set(["orb-drive", "fusion-hoops"]);
 
 export default function GamesGrid() {
   const navigate = useNavigate();
   const [activeGame, setActiveGame] = useState(null);
   const [hoveredGame, setHoveredGame] = useState(null);
+  const [selectedGame, setSelectedGame] = useState(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [gamePoints, setGamePoints] = useState({});
 
@@ -37,6 +38,16 @@ export default function GamesGrid() {
     } else {
       alert(`${gameId} game coming soon!`);
     }
+  };
+
+  const openInstructions = (game) => {
+    setSelectedGame(game);
+    setShowInstructions(true);
+  };
+
+  const closeInstructions = () => {
+    setShowInstructions(false);
+    setSelectedGame(null);
   };
 
   return (
@@ -78,16 +89,16 @@ export default function GamesGrid() {
             onToggle={() => setActiveGame(g.id === activeGame ? null : g.id)}
             onHover={() => setHoveredGame(g.id)}
             onLeave={() => setHoveredGame(null)}
-            onInstructions={() => setShowInstructions(true)}
+            onInstructions={() => openInstructions(g)}
             onPlay={() => handlePlay(g.id)}
           />
         ))}
       </div>
 
-      {showInstructions && (
+      {showInstructions && selectedGame && (
         <>
           <div
-            onClick={() => setShowInstructions(false)}
+            onClick={closeInstructions}
             style={{
               position: "fixed",
               inset: 0,
@@ -117,7 +128,7 @@ export default function GamesGrid() {
             }}
           >
             <button
-              onClick={() => setShowInstructions(false)}
+              onClick={closeInstructions}
               style={{
                 position: "absolute",
                 top: 10,
@@ -147,11 +158,11 @@ export default function GamesGrid() {
                 letterSpacing: 0.6,
               }}
             >
-              Game Instructions
+              {selectedGame.title} Instructions
             </h3>
 
             <p style={{ color: "var(--text-secondary)", fontSize: "0.82rem", lineHeight: 1.55, marginBottom: 10 }}>
-              These are the common rules for all therapy games available on your dashboard.
+              {selectedGame.type} guidelines for focused, safe, and effective training.
             </p>
 
             <ol
@@ -163,13 +174,9 @@ export default function GamesGrid() {
                 lineHeight: 1.65,
               }}
             >
-              <li>Start in a distraction-free environment and sit in a stable posture.</li>
-              <li>Keep your eyes focused on moving targets and avoid random cursor movement.</li>
-              <li>Complete the session timer or objective shown in the game HUD.</li>
-              <li>Try to maintain stable focus for better score and progress tracking.</li>
-              <li>If you feel eye strain, pause briefly and resume when comfortable.</li>
-              <li>Play at least one session daily to maintain and improve your streak.</li>
-              <li>Use the Play button only after reading rules for best training outcomes.</li>
+              {selectedGame.instructions.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
             </ol>
           </div>
         </>

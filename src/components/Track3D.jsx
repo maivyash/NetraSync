@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import * as THREE from "three";
+import * as THREE from "three"; // Force re-import after install
 import nissanImg from "../assets/nissancar.png";
 
 const ROAD_W = 12, TRACK_LEN = 400, CAM_H = 3.8, CAM_B = 8, FOV = 68;
@@ -8,13 +8,18 @@ const ROAD_W = 12, TRACK_LEN = 400, CAM_H = 3.8, CAM_B = 8, FOV = 68;
 const MODE_TURNS = {
   beginner: [],
   intermediate: [
-    { at: 0.30, dir: 1, dur: 0.15 },   // right turn at 30%
-    { at: 0.65, dir: -1, dur: 0.15 },   // left turn at 65%
+    { at: 0.20, dir: 1, dur: 0.15 },
+    { at: 0.35, dir: -1, dur: 0.15 },
+    { at: 0.65, dir: -1, dur: 0.15 },
+    { at: 0.80, dir: 1, dur: 0.15 },
   ],
   advanced: [
-    { at: 0.22, dir: -1, dur: 0.13 },   // left
-    { at: 0.50, dir: 1, dur: 0.13 },   // right
-    { at: 0.76, dir: -1, dur: 0.13 },   // left
+    { at: 0.15, dir: -1, dur: 0.12 },
+    { at: 0.30, dir: 1, dur: 0.12 },
+    { at: 0.45, dir: 1, dur: 0.12 },
+    { at: 0.60, dir: -1, dur: 0.12 },
+    { at: 0.75, dir: -1, dur: 0.12 },
+    { at: 0.90, dir: 1, dur: 0.12 },
   ],
 };
 
@@ -37,6 +42,46 @@ function mkRoadTex() {
   x.shadowBlur = 0;
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 10); return t;
+}
+
+/* ── Beach Sky ────────────────────────────────────────────── */
+function mkBeachSkyTex() {
+  const c = Object.assign(document.createElement("canvas"), { width: 4, height: 512 });
+  const x = c.getContext("2d"), g = x.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0, "#22aaff");
+  g.addColorStop(0.5, "#66ccff");
+  g.addColorStop(1, "#cceeff");
+  x.fillStyle = g; x.fillRect(0, 0, 4, 512);
+  return new THREE.CanvasTexture(c);
+}
+
+/* ── Palm Tree ────────────────────────────────────────────── */
+function mkPalmTree() {
+  const g = new THREE.Group();
+  const trunkGeo = new THREE.CylinderGeometry(0.3, 0.7, 16, 7);
+  trunkGeo.translate(0, 8, 0);
+  const trunk = new THREE.Mesh(trunkGeo, new THREE.MeshLambertMaterial({ color: 0x8b5a2b }));
+  trunk.rotation.z = (Math.random() - 0.5) * 0.25;
+  trunk.rotation.x = (Math.random() - 0.5) * 0.25;
+  g.add(trunk);
+
+  const leafMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57, side: THREE.DoubleSide });
+  for (let i = 0; i < 8; i++) {
+    const leafGeo = new THREE.PlaneGeometry(2.5, 12, 1, 4);
+    const pos = leafGeo.attributes.position;
+    for (let j = 0; j < pos.count; j++) {
+      const y = pos.getY(j);
+      pos.setZ(j, Math.sin(y * 0.1) * 2.5);
+    }
+    leafGeo.computeVertexNormals();
+    leafGeo.translate(0, 6, 0);
+    const leaf = new THREE.Mesh(leafGeo, leafMat);
+    leaf.position.y = 15;
+    leaf.rotation.y = (i * Math.PI / 4) + (Math.random() * 0.2);
+    leaf.rotation.x = 1.1 + Math.random() * 0.3;
+    g.add(leaf);
+  }
+  return g;
 }
 
 /* ── Night Sky ────────────────────────────────────────────── */
@@ -219,7 +264,7 @@ function mkFinishLine(scene, finishZ) {
    ══════════════════════════════════════════════════════════════ */
 export default function Track3D({
   speed, speedPct, progress, isFocused, focusStrength,
-  turnState, modeKey, running, playerCarRef, finishLineRef,
+  turnState, modeKey, running, playerCarRef, finishLineRef, carImg
 }) {
   const mountRef = useRef(null);
   const rafRef = useRef(null);
@@ -265,6 +310,8 @@ export default function Track3D({
   useEffect(() => {
     const mount = mountRef.current; if (!mount) return;
 
+    const isBeach = modeKey === "intermediate" || modeKey === "advanced";
+
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
@@ -272,53 +319,85 @@ export default function Track3D({
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
-    renderer.setClearColor(0x000008);
+    renderer.setClearColor(isBeach ? 0xcceeff : 0x000008);
     mount.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x05000f, 0.0055);
+    // Use linear fog for beach to preserve horizon without washing out the foreground
+    scene.fog = isBeach ? new THREE.Fog(0xcceeff, 150, 450) : new THREE.FogExp2(0x05000f, 0.0055);
     const camera = new THREE.PerspectiveCamera(FOV, mount.clientWidth / mount.clientHeight, 0.1, 900);
 
     /* Lighting */
-    scene.add(new THREE.AmbientLight(0x220033, 2.5));
-    const moonLight = new THREE.DirectionalLight(0x8899ff, 1.8);
-    moonLight.position.set(20, 60, -100); moonLight.castShadow = true;
-    moonLight.shadow.mapSize.set(2048, 2048);
-    Object.assign(moonLight.shadow.camera, { near: 0.5, far: 500, left: -100, right: 100, top: 100, bottom: -100 });
-    scene.add(moonLight);
-    const pLight = new THREE.PointLight(0xcc44ff, 3.5, 80);
-    pLight.position.set(-15, 12, -20); scene.add(pLight);
-    const cLight = new THREE.PointLight(0x00f5ff, 3.0, 80);
-    cLight.position.set(15, 12, -20); scene.add(cLight);
-    const stripL = new THREE.PointLight(0x00f5ff, 1.2, 40);
-    stripL.position.set(-ROAD_W / 2, 0.3, -50); scene.add(stripL);
-    const stripR = new THREE.PointLight(0x00f5ff, 1.2, 40);
-    stripR.position.set(ROAD_W / 2, 0.3, -50); scene.add(stripR);
+    let pLight, cLight, stripL, stripR;
+
+    if (isBeach) {
+      // Much brighter ambient lighting for beach mode
+      scene.add(new THREE.AmbientLight(0xffffff, 3.5));
+      const sunLight = new THREE.DirectionalLight(0xffffee, 3.5);
+      sunLight.position.set(-50, 100, -50);
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.set(2048, 2048);
+      Object.assign(sunLight.shadow.camera, { near: 0.5, far: 500, left: -100, right: 100, top: 100, bottom: -100 });
+      scene.add(sunLight);
+
+      // Dummy lights for beach to prevent crash in animate loop
+      pLight = new THREE.PointLight(0, 0, 0); scene.add(pLight);
+      cLight = new THREE.PointLight(0, 0, 0); scene.add(cLight);
+      stripL = new THREE.PointLight(0, 0, 0); scene.add(stripL);
+      stripR = new THREE.PointLight(0, 0, 0); scene.add(stripR);
+    } else {
+      scene.add(new THREE.AmbientLight(0x220033, 2.5));
+
+      const moonLight = new THREE.DirectionalLight(0x8899ff, 1.8);
+      moonLight.position.set(20, 60, -100); moonLight.castShadow = true;
+      moonLight.shadow.mapSize.set(2048, 2048);
+      Object.assign(moonLight.shadow.camera, { near: 0.5, far: 500, left: -100, right: 100, top: 100, bottom: -100 });
+      scene.add(moonLight);
+      pLight = new THREE.PointLight(0xcc44ff, 3.5, 80);
+      pLight.position.set(-15, 12, -20); scene.add(pLight);
+      cLight = new THREE.PointLight(0x00f5ff, 3.0, 80);
+      cLight.position.set(15, 12, -20); scene.add(cLight);
+      stripL = new THREE.PointLight(0x00f5ff, 1.2, 40);
+      stripL.position.set(-ROAD_W / 2, 0.3, -50); scene.add(stripL);
+      stripR = new THREE.PointLight(0x00f5ff, 1.2, 40);
+      stripR.position.set(ROAD_W / 2, 0.3, -50); scene.add(stripR);
+    }
 
     // Nitro boost light (follows car)
     const nitroLight = new THREE.PointLight(0x00ccff, 0, 20);
     nitroLight.position.set(0, 1, 0); scene.add(nitroLight);
 
-    mkStars(scene);
+    if (!isBeach) {
+      mkStars(scene);
+
+      /* Moon */
+      const moonGrp = new THREE.Group();
+      moonGrp.position.set(-80, 90, -350);
+      [[12, 0xe8e8ff, 0.12], [9, 0xdde0ff, 0.3], [7, 0xffffff, 0.85]].forEach(([r, col, op]) => {
+        moonGrp.add(new THREE.Mesh(new THREE.CircleGeometry(r, 32),
+          new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, depthWrite: false })));
+      });
+      scene.add(moonGrp);
+
+      /* Horizon city glow */
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(600, 60),
+        new THREE.MeshBasicMaterial({ color: 0x4400cc, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+      glow.rotation.x = -Math.PI / 2; glow.position.set(0, 0.2, -350); scene.add(glow);
+    } else {
+      /* Sun */
+      const sun = new THREE.Mesh(new THREE.CircleGeometry(22, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }));
+      sun.position.set(-60, 70, -360);
+      scene.add(sun);
+      /* Sun glow */
+      const sunGlow = new THREE.Mesh(new THREE.CircleGeometry(45, 32), new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.15, fog: false }));
+      sunGlow.position.set(-60, 70, -365);
+      scene.add(sunGlow);
+    }
 
     /* Sky */
     const skyGeo = new THREE.SphereGeometry(550, 24, 16);
     skyGeo.scale(-1, 1, 1);
-    scene.add(new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({ map: mkSkyTex(), side: THREE.BackSide })));
-
-    /* Moon */
-    const moonGrp = new THREE.Group();
-    moonGrp.position.set(-80, 90, -350);
-    [[12, 0xe8e8ff, 0.12], [9, 0xdde0ff, 0.3], [7, 0xffffff, 0.85]].forEach(([r, col, op]) => {
-      moonGrp.add(new THREE.Mesh(new THREE.CircleGeometry(r, 32),
-        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, depthWrite: false })));
-    });
-    scene.add(moonGrp);
-
-    /* Horizon city glow */
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(600, 60),
-      new THREE.MeshBasicMaterial({ color: 0x4400cc, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
-    glow.rotation.x = -Math.PI / 2; glow.position.set(0, 0.2, -350); scene.add(glow);
+    scene.add(new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({ map: isBeach ? mkBeachSkyTex() : mkSkyTex(), side: THREE.BackSide })));
 
     /* Road */
     const rTex = mkRoadTex();
@@ -369,9 +448,20 @@ export default function Track3D({
 
     /* Ground */
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, TRACK_LEN + 100),
-      new THREE.MeshPhongMaterial({ color: 0x0a0a14, shininess: 5 }));
+      new THREE.MeshLambertMaterial({ color: isBeach ? 0xffe4ab : 0x0a0a14 }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(0, -0.01, -(TRACK_LEN / 2) + 10); scene.add(ground);
+
+    /* Ocean (if day) */
+    if (isBeach) {
+      const seaMat = new THREE.MeshPhongMaterial({ color: 0x00bfff, shininess: 90, transparent: true, opacity: 0.75 });
+      [-1, 1].forEach(s => {
+        const sea = new THREE.Mesh(new THREE.PlaneGeometry(300, TRACK_LEN + 100), seaMat);
+        sea.rotation.x = -Math.PI / 2;
+        sea.position.set(s * 180, -0.8, -(TRACK_LEN / 2) + 10);
+        scene.add(sea);
+      });
+    }
 
     /* ── Road Light Poles (on both sides of road) ── */
     const lampZ_positions = [];
@@ -394,37 +484,47 @@ export default function Track3D({
       });
     });
 
-    /* Buildings */
-    const buildingData = [
-      { z: -30, s: -1, w: 8, h: 28, d: 10, col: 0x0a0a18 }, { z: -30, s: 1, w: 10, h: 22, d: 8, col: 0x0d0d20 },
-      { z: -70, s: -1, w: 12, h: 38, d: 10, col: 0x080818 }, { z: -70, s: 1, w: 9, h: 30, d: 12, col: 0x0c0c1c },
-      { z: -115, s: -1, w: 10, h: 45, d: 10, col: 0x0a0a18 }, { z: -115, s: 1, w: 14, h: 35, d: 10, col: 0x08081a },
-      { z: -165, s: -1, w: 11, h: 55, d: 10, col: 0x0c0c20 }, { z: -165, s: 1, w: 10, h: 42, d: 12, col: 0x090915 },
-      { z: -215, s: -1, w: 13, h: 50, d: 10, col: 0x0a0a18 }, { z: -215, s: 1, w: 11, h: 60, d: 10, col: 0x0b0b1c },
-      { z: -265, s: -1, w: 10, h: 65, d: 10, col: 0x080818 }, { z: -265, s: 1, w: 12, h: 48, d: 12, col: 0x0c0c22 },
-      { z: -315, s: -1, w: 14, h: 70, d: 10, col: 0x080820 }, { z: -315, s: 1, w: 11, h: 55, d: 10, col: 0x0a0a1c },
-    ];
-    buildingData.forEach(({ z, s, w, h, d, col }) => {
-      const b = mkBuilding(w, h, d, col);
-      b.position.set(s * (ROAD_W / 2 + w / 2 + 5), 0, z);
-      scene.add(b);
-      const bLight = new THREE.PointLight(s > 0 ? 0x00f5ff : 0xcc44ff, 0.8, 25);
-      bLight.position.set(s * (ROAD_W / 2 + w / 2 + 5), h + 2, z);
-      scene.add(bLight);
-    });
+    /* Buildings or Trees */
+    if (isBeach) {
+      for (let z = -30; z > -TRACK_LEN; z -= 35) {
+        [-1, 1].forEach(s => {
+          const palm = mkPalmTree();
+          palm.position.set(s * (ROAD_W / 2 + 6 + Math.random() * 4), 0, z + Math.random() * 15);
+          scene.add(palm);
+        });
+      }
+    } else {
+      const buildingData = [
+        { z: -30, s: -1, w: 8, h: 28, d: 10, col: 0x0a0a18 }, { z: -30, s: 1, w: 10, h: 22, d: 8, col: 0x0d0d20 },
+        { z: -70, s: -1, w: 12, h: 38, d: 10, col: 0x080818 }, { z: -70, s: 1, w: 9, h: 30, d: 12, col: 0x0c0c1c },
+        { z: -115, s: -1, w: 10, h: 45, d: 10, col: 0x0a0a18 }, { z: -115, s: 1, w: 14, h: 35, d: 10, col: 0x08081a },
+        { z: -165, s: -1, w: 11, h: 55, d: 10, col: 0x0c0c20 }, { z: -165, s: 1, w: 10, h: 42, d: 12, col: 0x090915 },
+        { z: -215, s: -1, w: 13, h: 50, d: 10, col: 0x0a0a18 }, { z: -215, s: 1, w: 11, h: 60, d: 10, col: 0x0b0b1c },
+        { z: -265, s: -1, w: 10, h: 65, d: 10, col: 0x080818 }, { z: -265, s: 1, w: 12, h: 48, d: 12, col: 0x0c0c22 },
+        { z: -315, s: -1, w: 14, h: 70, d: 10, col: 0x080820 }, { z: -315, s: 1, w: 11, h: 55, d: 10, col: 0x0a0a1c },
+      ];
+      buildingData.forEach(({ z, s, w, h, d, col }) => {
+        const b = mkBuilding(w, h, d, col);
+        b.position.set(s * (ROAD_W / 2 + w / 2 + 5), 0, z);
+        scene.add(b);
+        const bLight = new THREE.PointLight(s > 0 ? 0x00f5ff : 0xcc44ff, 0.8, 25);
+        bLight.position.set(s * (ROAD_W / 2 + w / 2 + 5), h + 2, z);
+        scene.add(bLight);
+      });
 
-    /* Billboards */
-    [
-      { z: -60, s: -1, text: "SPEED+", col: "#00f5ff" },
-      { z: -130, s: 1, text: "NITRO", col: "#cc44ff" },
-      { z: -200, s: -1, text: "GT-R", col: "#ff2266" },
-      { z: -270, s: 1, text: "RACE!", col: "#ffee00" },
-    ].forEach(({ z, s, text, col }) => {
-      const bb = mkBillboard(text, col);
-      bb.position.set(s * (ROAD_W / 2 + 12), 0, z);
-      bb.rotation.y = s > 0 ? Math.PI * 1.1 : -Math.PI * 0.1;
-      scene.add(bb);
-    });
+      /* Billboards */
+      [
+        { z: -60, s: -1, text: "SPEED+", col: "#00f5ff" },
+        { z: -130, s: 1, text: "NITRO", col: "#cc44ff" },
+        { z: -200, s: -1, text: "GT-R", col: "#ff2266" },
+        { z: -270, s: 1, text: "RACE!", col: "#ffee00" },
+      ].forEach(({ z, s, text, col }) => {
+        const bb = mkBillboard(text, col);
+        bb.position.set(s * (ROAD_W / 2 + 12), 0, z);
+        bb.rotation.y = s > 0 ? Math.PI * 1.1 : -Math.PI * 0.1;
+        scene.add(bb);
+      });
+    }
 
     /* Turn sign arrows for intermediate/advanced */
     const turnSigns = [];
@@ -520,8 +620,8 @@ export default function Track3D({
       const carZ = -prog * TRACK_LEN;
       const isNitro = sp > 0.88;
 
-      /* Camera lean matching turn state */
-      camLean += (ts * -0.08 - camLean) * 0.08;
+      /* Camera/car lean matching turn state (highly intensified) */
+      camLean += (ts * -0.45 - camLean) * 0.1;
 
       /* Camera shake at max speed */
       if (isNitro) {
@@ -548,9 +648,11 @@ export default function Track3D({
 
       /* Neon pulsing */
       const pulse = 0.7 + 0.3 * Math.sin(pulseCycle * 3.14);
-      pLight.intensity = 3.0 * pulse + (isNitro ? 5 : 0);
-      cLight.intensity = 2.8 * pulse + (isNitro ? 3 : 0);
-      stripL.position.z = stripR.position.z = Math.min(-0.5, carZ - 12);
+      if (!isBeach) {
+        pLight.intensity = 3.0 * pulse + (isNitro ? 5 : 0);
+        cLight.intensity = 2.8 * pulse + (isNitro ? 3 : 0);
+        stripL.position.z = stripR.position.z = Math.min(-0.5, carZ - 12);
+      }
 
       /* Finish line light pulse */
       finLight.intensity = 6 + 4 * Math.sin(pulseCycle * 5);
@@ -640,37 +742,41 @@ export default function Track3D({
   }, []);
 
   return (
-    <div ref={mountRef} style={{ width: "100%", height: "100%", position: "relative", background: "#000008" }}>
+    <div ref={mountRef} style={{ width: "100%", height: "100%", position: "relative", background: modeKey === "beginner" ? "#000008" : "#88ccff" }}>
 
       {/* Hidden DOM refs for collision detection */}
       <div ref={finishLineRef} style={{ position: "absolute", top: "36%", left: "10%", width: "80%", height: "4px", opacity: 0, pointerEvents: "none" }} />
       <div ref={playerCarRef} aria-label="Car" style={{ position: "absolute", bottom: "2%", left: "20%", width: "60%", height: "38%", opacity: 0, pointerEvents: "none" }} />
 
-      {/* ── Nissan GT-R PNG overlay — player car (movement with turn) ── */}
+      {/* ── Player Car Image Overlay ── */}
       <div
         ref={carDivRef}
         style={{
           position: "absolute",
-          bottom: 0,
+          bottom: "3%",
           left: "50%",
           transform: "translateX(-50%)",
-          width: "62%",
-          maxWidth: 520,
+          width: "48%", // Reduced size per request
+          maxWidth: 400,
           pointerEvents: "none",
           zIndex: 10,
-          filter: "drop-shadow(0 -6px 28px rgba(0,245,255,0.45)) drop-shadow(0 0 60px rgba(100,0,200,0.4))",
-          // Lean slightly with turn
-          transform: `translateX(calc(-50% + ${(turnState || 0) * -18}px)) rotate(${(turnState || 0) * -2.5}deg)`,
+          filter: modeKey !== "beginner"
+            ? "drop-shadow(0 6px 20px rgba(0,0,0,0.5))" // Standard shadow for day mode
+            : "drop-shadow(0 -6px 28px rgba(0,245,255,0.45)) drop-shadow(0 0 60px rgba(100,0,200,0.4))", // Neon shadow for night
+          // Remove horizontal slide for intermediate/advanced
+          transform: modeKey === "beginner"
+            ? `translateX(calc(-50% + ${(turnState || 0) * -35}px)) rotate(${(turnState || 0) * -8}deg)`
+            : 'translateX(-50%)',
           transition: "transform 0.25s ease-out",
         }}
       >
         <img
-          src={nissanImg}
-          alt="Player Car - Nissan GT-R"
+          src={carImg || nissanImg}
+          alt="Player Car"
           style={{
             width: "100%",
             display: "block",
-            mixBlendMode: "multiply",
+            mixBlendMode: modeKey === "beginner" ? "multiply" : "normal",
             filter: "contrast(1.12) saturate(1.15) brightness(0.92)",
             userSelect: "none",
           }}
