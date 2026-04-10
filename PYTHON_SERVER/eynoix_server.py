@@ -62,7 +62,7 @@ MILD_THR=15.0; MOD_THR=40.0; SEV_THR=70.0; MAX_DEV=0.30
 def _ensure_model():
     if not os.path.exists(MODEL_FILE):
         import urllib.request
-        print(f"[EYNOIX] Downloading model → {MODEL_FILE}")
+        print(f"[EYNOIX] Downloading model -> {MODEL_FILE}")
         def _p(b, bs, tot):
             pct = min(b * bs / tot * 100, 100) if tot > 0 else 0
             sys.stdout.write(f"\r  [{'#'*int(pct/2)}{'-'*(50-int(pct/2))}] {pct:.1f}%")
@@ -207,6 +207,109 @@ def calc_misalignment(dominant: EyeGaze, non_dom: EyeGaze, head_yaw: float = 0.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# IMAGE PREPROCESSING — enhance detection in low-quality / poor lighting
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _preprocess_variants(frame):
+    """
+    Generate multiple preprocessed versions of the input frame to
+    maximize the chance of successful face landmark detection.
+    Returns a list of (label, bgr_frame) tuples — the engine will
+    try each one in order until landmarks are found.
+    """
+    variants = []
+
+    # 0. Original (always first)
+    variants.append(("original", frame.copy()))
+
+    h, w = frame.shape[:2]
+
+    # 1. CLAHE on LAB L-channel — equalizes lighting without colour distortion
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    l_ch, a_ch, b_ch = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    l_eq = clahe.apply(l_ch)
+    lab_eq = cv2.merge([l_eq, a_ch, b_ch])
+    variants.append(("clahe", cv2.cvtColor(lab_eq, cv2.COLOR_LAB2BGR)))
+
+    # 2. Brightness-boosted (+40) — helps dark / underexposed selfies
+    bright = cv2.convertScaleAbs(frame, alpha=1.15, beta=40)
+    variants.append(("bright", bright))
+
+    # 3. Histogram-equalised greyscale converted back to BGR
+    grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    eq = cv2.equalizeHist(grey)
+    variants.append(("histeq", cv2.cvtColor(eq, cv2.COLOR_GRAY2BGR)))
+
+    # 4. Gamma correction (brighten shadows, gamma < 1)
+    gamma = 0.7
+    inv_gamma = 1.0 / gamma
+    table = np.array([(i / 255.0) ** inv_gamma * 255
+                      for i in np.arange(256)]).astype("uint8")
+    variants.append(("gamma", cv2.LUT(frame, table)))
+
+    # 5. Sharpened — helps with blurry webcam captures
+    kernel = np.array([[0, -1, 0],
+                       [-1, 5, -1],
+                       [0, -1, 0]], dtype=np.float32)
+    sharpened = cv2.filter2D(frame, -1, kernel)
+    variants.append(("sharp", sharpened))
+
+    # 6. Upscaled (if image is small, e.g. < 480px wide)
+    if w < 480:
+        scale = 720 / w
+        up = cv2.resize(frame, (int(w * scale), int(h * scale)),
+                        interpolation=cv2.INTER_CUBIC)
+        variants.append(("upscaled", up))
+
+    return variants
+
+
+def _validate_eyes_visible(lms, w, h):
+    """
+    Validate that both eyes are actually visible and meaningful
+    in the detected face landmarks. Returns True only when both
+    eyes have sufficient opening (EAR) and reasonable iris positions.
+    """
+    # Check that key eye landmarks are within the frame
+    for idx in [LEFT_EYE_INNER, LEFT_EYE_OUTER, LEFT_EYE_TOP, LEFT_EYE_BOTTOM,
+                RIGHT_EYE_INNER, RIGHT_EYE_OUTER, RIGHT_EYE_TOP, RIGHT_EYE_BOTTOM,
+                LEFT_IRIS_CENTER, RIGHT_IRIS_CENTER]:
+        lm = lms[idx]
+        px, py = lm.x * w, lm.y * h
+        # Landmark must be within the frame (with slim margin)
+        if px < -10 or px > w + 10 or py < -10 or py > h + 10:
+            return False
+
+    # Verify that both eyes have some opening (not fully closed / occluded)
+    def _ear(inner_idx, outer_idx, top_idx, bottom_idx):
+        inner = np.array([lms[inner_idx].x * w, lms[inner_idx].y * h])
+        outer = np.array([lms[outer_idx].x * w, lms[outer_idx].y * h])
+        top   = np.array([lms[top_idx].x * w,   lms[top_idx].y * h])
+        bot   = np.array([lms[bottom_idx].x * w, lms[bottom_idx].y * h])
+        ew = np.linalg.norm(inner - outer) + 1e-6
+        eh = np.linalg.norm(top - bot)
+        return eh / ew
+
+    left_ear  = _ear(LEFT_EYE_INNER, LEFT_EYE_OUTER, LEFT_EYE_TOP, LEFT_EYE_BOTTOM)
+    right_ear = _ear(RIGHT_EYE_INNER, RIGHT_EYE_OUTER, RIGHT_EYE_TOP, RIGHT_EYE_BOTTOM)
+
+    # Both eyes must have at least minimal opening (EAR > 0.12)
+    MIN_EAR = 0.12
+    if left_ear < MIN_EAR or right_ear < MIN_EAR:
+        return False
+
+    # Verify that eye width is at least 1.5% of frame width (not too tiny)
+    left_ew = abs(lms[LEFT_EYE_INNER].x - lms[LEFT_EYE_OUTER].x) * w
+    right_ew = abs(lms[RIGHT_EYE_INNER].x - lms[RIGHT_EYE_OUTER].x) * w
+    MIN_EYE_WIDTH = w * 0.015
+    if left_ew < MIN_EYE_WIDTH or right_ew < MIN_EYE_WIDTH:
+        return False
+
+    return True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # ENGINE
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -216,19 +319,34 @@ class EynoixEngine:
         self.dominant_side = dominant_side
         self._lock = threading.Lock()
 
+        # Create TWO landmarkers: one with normal confidence, one with low confidence
         BaseOpts = mp.tasks.BaseOptions
         FLM      = mp.tasks.vision.FaceLandmarker
         FLMOpts  = mp.tasks.vision.FaceLandmarkerOptions
         RunMode  = mp.tasks.vision.RunningMode
-        opts = FLMOpts(
+
+        # Primary — balanced thresholds
+        opts_primary = FLMOpts(
             base_options=BaseOpts(model_asset_path=MODEL_FILE),
             running_mode=RunMode.IMAGE, num_faces=1,
-            min_face_detection_confidence=0.5,
-            min_face_presence_confidence=0.5,
-            min_tracking_confidence=0.5,
+            min_face_detection_confidence=0.3,
+            min_face_presence_confidence=0.3,
+            min_tracking_confidence=0.3,
             output_face_blendshapes=False,
             output_facial_transformation_matrixes=False)
-        self.landmarker = FLM.create_from_options(opts)
+        self.landmarker_primary = FLM.create_from_options(opts_primary)
+
+        # Fallback — very aggressive (low) thresholds for difficult images
+        opts_fallback = FLMOpts(
+            base_options=BaseOpts(model_asset_path=MODEL_FILE),
+            running_mode=RunMode.IMAGE, num_faces=1,
+            min_face_detection_confidence=0.15,
+            min_face_presence_confidence=0.15,
+            min_tracking_confidence=0.15,
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False)
+        self.landmarker_fallback = FLM.create_from_options(opts_fallback)
+
         self._set_dom(dominant_side)
 
     def _set_dom(self, side):
@@ -250,29 +368,112 @@ class EynoixEngine:
             self._set_dom(side)
         return {"ok": True, "dominant_side": side}
 
+    def _detect_with_landmarker(self, landmarker, rgb_frame):
+        """Run detection with a given landmarker, returning result or None."""
+        try:
+            mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+            result = landmarker.detect(mp_img)
+            if result.face_landmarks and len(result.face_landmarks) > 0:
+                return result
+        except Exception as e:
+            print(f"  [WARN] Detection error: {e}")
+        return None
+
+    def _try_detect(self, frame):
+        """
+        Multi-pass detection pipeline:
+        1. Try primary landmarker on all preprocessed variants
+        2. Try fallback landmarker on all preprocessed variants
+        3. Try both with the un-flipped original image
+        Returns (result, frame_used_h, frame_used_w, was_flipped) or None
+        """
+        variants = _preprocess_variants(frame)
+
+        # Pass 1: Primary landmarker on all variants
+        for label, var_frame in variants:
+            h_v, w_v = var_frame.shape[:2]
+            rgb = cv2.cvtColor(var_frame, cv2.COLOR_BGR2RGB)
+            result = self._detect_with_landmarker(self.landmarker_primary, rgb)
+            if result:
+                lms = result.face_landmarks[0]
+                if _validate_eyes_visible(lms, w_v, h_v):
+                    print(f"  [OK] Face detected via PRIMARY on '{label}' variant ({w_v}x{h_v})")
+                    return result, h_v, w_v, True
+
+        # Pass 2: Fallback (low-confidence) landmarker on all variants
+        for label, var_frame in variants:
+            h_v, w_v = var_frame.shape[:2]
+            rgb = cv2.cvtColor(var_frame, cv2.COLOR_BGR2RGB)
+            result = self._detect_with_landmarker(self.landmarker_fallback, rgb)
+            if result:
+                lms = result.face_landmarks[0]
+                if _validate_eyes_visible(lms, w_v, h_v):
+                    print(f"  [OK] Face detected via FALLBACK on '{label}' variant ({w_v}x{h_v})")
+                    return result, h_v, w_v, True
+
+        # Pass 3: Try un-flipped original (in case the flip caused issues)
+        unflipped = cv2.flip(frame, 1)  # undo the flip
+        unflip_variants = _preprocess_variants(unflipped)
+        for label, var_frame in unflip_variants:
+            h_v, w_v = var_frame.shape[:2]
+            rgb = cv2.cvtColor(var_frame, cv2.COLOR_BGR2RGB)
+            result = self._detect_with_landmarker(self.landmarker_primary, rgb)
+            if result:
+                lms = result.face_landmarks[0]
+                if _validate_eyes_visible(lms, w_v, h_v):
+                    print(f"  [OK] Face detected via PRIMARY UNFLIPPED on '{label}' ({w_v}x{h_v})")
+                    return result, h_v, w_v, False
+
+        # Pass 4: Fallback on un-flipped variants
+        for label, var_frame in unflip_variants:
+            h_v, w_v = var_frame.shape[:2]
+            rgb = cv2.cvtColor(var_frame, cv2.COLOR_BGR2RGB)
+            result = self._detect_with_landmarker(self.landmarker_fallback, rgb)
+            if result:
+                lms = result.face_landmarks[0]
+                if _validate_eyes_visible(lms, w_v, h_v):
+                    print(f"  [OK] Face detected via FALLBACK UNFLIPPED on '{label}' ({w_v}x{h_v})")
+                    return result, h_v, w_v, False
+
+        # Detection without eye validation (last resort — still return face_detected)
+        for label, var_frame in variants:
+            h_v, w_v = var_frame.shape[:2]
+            rgb = cv2.cvtColor(var_frame, cv2.COLOR_BGR2RGB)
+            result = self._detect_with_landmarker(self.landmarker_fallback, rgb)
+            if result:
+                print(f"  [WARN] Face found on '{label}' but eyes may not be fully visible")
+                return result, h_v, w_v, True
+
+        return None
+
     def analyze_image(self, image_bytes: bytes):
         """
         Analyse an image received from an external server.
         image_bytes: raw JPEG/PNG bytes (already decoded from base64).
+
+        Uses multi-pass detection with image preprocessing to maximize
+        accuracy. Takes longer but delivers much more reliable results.
         """
+        t0 = time.time()
         nparr = np.frombuffer(image_bytes, np.uint8)
         frame  = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if frame is None:
             return {"error": "Could not decode image"}
         frame = cv2.flip(frame, 1)
-        h, w  = frame.shape[:2]
 
         with self._lock:
             cap_le, cap_re, cap_dom, cap_nd = self._make_eyes()
             dominant_side = self.dominant_side
 
-        rgb    = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        result = self.landmarker.detect(mp_img)
+        # Multi-pass detection
+        detection = self._try_detect(frame)
 
-        if not result.face_landmarks:
+        if detection is None:
+            elapsed = time.time() - t0
+            print(f"  [FAIL] No face detected after {elapsed:.2f}s multi-pass")
             return {"type": "analyze_image", "face_detected": False, "timestamp": time.time()}
 
+        result, h, w, was_flipped = detection
         lms = result.face_landmarks[0]
         cap_le.update(lms, w, h)
         cap_re.update(lms, w, h)
@@ -285,6 +486,9 @@ class EynoixEngine:
             dy = cap_re.iris_center[1] - cap_le.iris_center[1]
             ipd  = round(math.sqrt(dx*dx + dy*dy), 2)
             tilt = round(math.degrees(math.atan2(dy, dx)), 2)
+
+        elapsed = time.time() - t0
+        print(f"  [DONE] Analysis complete in {elapsed:.2f}s — alignment={m.percentage:.1f}%")
 
         return {
             "type":         "analyze_image",
@@ -304,10 +508,12 @@ class EynoixEngine:
             },
             "interpupillary_distance_px": ipd,
             "head_tilt_deg": tilt,
+            "analysis_time_s": round(elapsed, 3),
         }
 
     def stop(self):
-        self.landmarker.close()
+        self.landmarker_primary.close()
+        self.landmarker_fallback.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -342,7 +548,7 @@ class RESTHandler(BaseHTTPRequestHandler):
         if path == "/":
             _json(self, {
                 "service": "EYNOIX",
-                "version": "1.0",
+                "version": "2.0",
                 "POST": ["/analyze_image"],
             })
         elif path == "/health":
@@ -387,10 +593,11 @@ def main():
 
     global _engine
     print("=" * 56)
-    print("  EYNOIX Server  (analyze_image only)")
-    print(f"  HTTP REST  →  http://localhost:{args.http_port}")
+    print("  EYNOIX Server v2.0 (Multi-Pass Accuracy)")
+    print(f"  HTTP REST  ->  http://localhost:{args.http_port}")
     print(f"  Dominant: {args.dominant.upper()}")
     print("  POST /analyze_image  { image_base64, dominant? }")
+    print("  Features: CLAHE, gamma, sharpening, multi-scale")
     print("  Ctrl+C to stop")
     print("=" * 56)
 
