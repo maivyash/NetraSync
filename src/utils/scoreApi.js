@@ -107,3 +107,38 @@ export async function getGameScores(gameName) {
         return { success: false, error: err.message };
     }
 }
+
+/**
+ * Submit an AI alignment score.
+ * @param {Object} params
+ * @param {number} params.alignment
+ * @param {string} [params.severity]
+ * @param {string} [params.direction]
+ * @param {string} [params.strabismus]
+ */
+export async function submitAlignmentScore({ alignment, severity, direction, strabismus }) {
+    try {
+        const res = await fetch(`${API_BASE}/scores/alignment`, {
+            method: "POST",
+            headers: authHeaders(),
+            body: JSON.stringify({ alignment, severity, direction, strabismus }),
+        });
+        return await res.json();
+    } catch (err) {
+        console.error("submitAlignmentScore error:", err);
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * Fetch all alignment scores for the user.
+ */
+export async function getAlignmentScores() {
+    try {
+        const res = await fetch(`${API_BASE}/scores/alignment/me`, { headers: authHeaders() });
+        return await res.json();
+    } catch (err) {
+        console.error("getAlignmentScores error:", err);
+        return { success: false, error: err.message };
+    }
+}

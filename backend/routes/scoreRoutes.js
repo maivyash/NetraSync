@@ -50,10 +50,25 @@ function calculatePoints({ rawScore, difficulty, timeTaken, gameName }) {
             )
         `);
         console.log("✅ game_scores table ready");
+
+        await db.execute(`
+            CREATE TABLE IF NOT EXISTS alignment_scores (
+                id            INT AUTO_INCREMENT PRIMARY KEY,
+                user_id       INT NOT NULL,
+                alignment     FLOAT NOT NULL,
+                severity      VARCHAR(50),
+                direction     VARCHAR(50),
+                strabismus    VARCHAR(50),
+                captured_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                INDEX idx_alignment_user_date (user_id, captured_at)
+            )
+        `);
+        console.log("✅ alignment_scores table ready");
     } catch (err) {
         // Table may already exist or DB not ready yet — that's fine
         if (!err.message.includes("already exists")) {
-            console.error("game_scores table creation warning:", err.message);
+            console.error("table creation warning:", err.message);
         }
     }
 })();
@@ -294,3 +309,62 @@ router.get("/scores/me/game/:gameName", verifyToken, async (req, res) => {
 });
 
 export default router;
+
+// ─── POST /api/scores/alignment — Submit an alignment score ─────────────────
+router.post("/scores/alignment", verifyToken, async (req, res) => {
+    const userId = req.user.id;
+    const {
+        alignment,
+        severity,
+        direction,
+        strabismus
+    } = req.body;
+
+    if (alignment === undefined || alignment === null) {
+        return res.status(400).json({ success: false, error: "alignment score is required" });
+    }
+
+    try {
+        const [result] = await db.execute(
+            `INSERT INTO alignment_scores 
+             (user_id, alignment, severity, direction, strabismus)
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+                userId,
+                Math.round(alignment * 100) / 100,
+                severity || null,
+                direction || null,
+                strabismus || null
+            ]
+        );
+
+        res.status(201).json({
+            success: true,
+            message: "Alignment score saved",
+            scoreId: result.insertId,
+            alignment,
+        });
+    } catch (err) {
+        console.error("Save alignment score error:", err);
+        res.status(500).json({ success: false, error: "Failed to save alignment score" });
+    }
+});
+
+// ─── GET /api/scores/alignment/me — All alignment scores for logged-in user ─────
+router.get("/scores/alignment/me", verifyToken, async (req, res) => {
+    try {
+        const [rows] = await db.execute(
+            `SELECT id, alignment, severity, direction, strabismus, captured_at
+             FROM alignment_scores 
+             WHERE user_id = ? 
+             ORDER BY captured_at DESC 
+             LIMIT 100`,
+            [req.user.id]
+        );
+
+        res.json({ success: true, count: rows.length, data: rows });
+    } catch (err) {
+        console.error("Fetch alignment scores error:", err);
+        res.status(500).json({ success: false, error: "Failed to fetch alignment scores" });
+    }
+});
