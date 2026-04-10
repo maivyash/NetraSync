@@ -324,7 +324,7 @@ router.post("/auth/send-otp", async (req, res) => {
     }
 
     try {
-        const otp = String(randomInt(100000, 1000000));
+        const otp = String(randomInt(100000, 999999));
         const expiresAt = Date.now() + OTP_TTL_MS;
 
         const transporter = await getMailerTransporter();
