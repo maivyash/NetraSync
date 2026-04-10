@@ -1,32 +1,33 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { isTokenValid } from "../utils/auth";
+import { PlaySquareOutlined, RocketOutlined, LineChartOutlined, ExperimentOutlined, EyeOutlined, SearchOutlined, AimOutlined } from "@ant-design/icons";
 
 /* ── DATA ── */
 const features = [
     {
-        icon: "🎮",
+        icon: <PlaySquareOutlined />,
         title: "Game-Based Training",
         desc: "Engaging neuro-therapeutic environments designed to stimulate oculomotor control and visual processing speed.",
         color: "#00f5ff",
         delay: 0,
     },
     {
-        icon: "🧠",
+        icon: <RocketOutlined />,
         title: "AI-Driven Plans",
         desc: "Our proprietary NetraCore engine adapts game difficulty and visual stimuli in real-time based on patient response metrics.",
         color: "#a855f7",
         delay: 100,
     },
     {
-        icon: "📊",
+        icon: <LineChartOutlined />,
         title: "Real-Time Progress",
         desc: "Instant telemetry and diagnostic readouts visualizing saccadic accuracy, depth perception, and focus recovery.",
         color: "#00ff88",
         delay: 200,
     },
     {
-        icon: "🔬",
+        icon: <ExperimentOutlined />,
         title: "Clinical Precision",
         desc: "Developed in collaboration with leading ophthalmologists and neuro-scientists for hospital-grade results at home.",
         color: "#ff6b35",
@@ -218,7 +219,7 @@ function EyeOrb() {
                 <div style={{
                     fontSize: 80, filter: "drop-shadow(0 0 24px rgba(0,245,255,0.8))",
                     animation: "pulse-glow-eye 3s ease-in-out infinite",
-                }}>👁</div>
+                }}><EyeOutlined /></div>
             </div>
         </div>
     );
@@ -434,7 +435,7 @@ export default function Landing() {
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 18, boxShadow: "0 0 20px rgba(0,245,255,0.5)",
                         animation: "pulse-glow 3s ease-in-out infinite",
-                    }}>👁</div>
+                    }}><EyeOutlined /></div>
                     <span style={{
                         fontFamily: "var(--font-heading)", fontWeight: 900, fontSize: "1.25rem",
                         color: "#fff", letterSpacing: "0.05em",
@@ -695,7 +696,7 @@ export default function Landing() {
                     }} />
 
                     <div style={{ fontSize: 52, marginBottom: 24, filter: "drop-shadow(0 0 16px rgba(0,245,255,0.4))" }}>
-                        👁‍🗨
+                        <EyeOutlined />
                     </div>
                     <h2 style={{
                         fontFamily: "var(--font-heading)", fontSize: "clamp(1.4rem,3vw,2rem)",
@@ -738,10 +739,10 @@ export default function Landing() {
 function HowItWorks() {
     const [ref, isVisible] = useReveal(0.15);
     const steps = [
-        { num: "01", title: "Diagnostic Scan", desc: "Complete a brief vision assessment powered by AI-calibrated stimuli.", color: "#00f5ff", icon: "🔍" },
-        { num: "02", title: "Personalized Protocol", desc: "Receive a custom therapy plan mapped to your unique visual profile.", color: "#a855f7", icon: "🧬" },
-        { num: "03", title: "Game Therapy Sessions", desc: "Play clinically-designed mini-games that train your visual pathways.", color: "#00ff88", icon: "🎯" },
-        { num: "04", title: "Track & Evolve", desc: "Monitor real-time progress and watch your vision metrics improve daily.", color: "#ff6b35", icon: "📈" },
+        { num: "01", title: "Diagnostic Scan", desc: "Complete a brief vision assessment powered by AI-calibrated stimuli.", color: "#00f5ff", icon: <SearchOutlined /> },
+        { num: "02", title: "Personalized Protocol", desc: "Receive a custom therapy plan mapped to your unique visual profile.", color: "#a855f7", icon: <ExperimentOutlined /> },
+        { num: "03", title: "Game Therapy Sessions", desc: "Play clinically-designed mini-games that train your visual pathways.", color: "#00ff88", icon: <AimOutlined /> },
+        { num: "04", title: "Track & Evolve", desc: "Monitor real-time progress and watch your vision metrics improve daily.", color: "#ff6b35", icon: <LineChartOutlined /> },
     ];
 
     return (
