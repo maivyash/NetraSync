@@ -8,7 +8,9 @@ import PlayOrbDrive from "./pages/PlayOrbDrive";
 import PlayFusionHoops from "./pages/PlayFusionHoops";
 import PlaySkyShotPro from "./pages/PlaySkyShotPro";
 import ProtectedRoute from "./components/ProtectedRoute";
-import ShapeMatch from "./games/ShapeMatch";
+import PlayShapeMatch from "./pages/PlayShapeMatch";
+import { FaceCursorProvider } from "./context/FaceCursorContext";
+import EyeCursorOverlay from "./components/eye-tracking/EyeCursorOverlay";
 import "./App.css";
 
 function App() {
@@ -28,21 +30,29 @@ function App() {
         },
       }}
     >
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/relogin" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/play/orb-drive" element={<ProtectedRoute><PlayOrbDrive /></ProtectedRoute>} />
-          <Route path="/play/fusion-hoops" element={<ProtectedRoute><PlayFusionHoops /></ProtectedRoute>} />
-          <Route path="/play/sky-shot-pro" element={<ProtectedRoute><PlaySkyShotPro /></ProtectedRoute>} />
-          <Route path="/teen" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-          <Route path="/play/shape-match" element={<ProtectedRoute><ShapeMatch /></ProtectedRoute>} />
-        </Routes>
-      </BrowserRouter>
+      {/*
+        FaceCursorProvider owns the single camera+MediaPipe instance.
+        EyeCursorOverlay renders the virtual cursor globally (pointer-events: none).
+        Both are mounted at app root so they persist across route changes.
+      */}
+      <FaceCursorProvider>
+        <EyeCursorOverlay />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/relogin" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/play/orb-drive" element={<ProtectedRoute><PlayOrbDrive /></ProtectedRoute>} />
+            <Route path="/play/fusion-hoops" element={<ProtectedRoute><PlayFusionHoops /></ProtectedRoute>} />
+            <Route path="/play/sky-shot-pro" element={<ProtectedRoute><PlaySkyShotPro /></ProtectedRoute>} />
+            <Route path="/teen" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/play/shape-match" element={<ProtectedRoute><PlayShapeMatch /></ProtectedRoute>} />
+          </Routes>
+        </BrowserRouter>
+      </FaceCursorProvider>
     </ConfigProvider>
   );
 }

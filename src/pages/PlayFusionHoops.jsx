@@ -1,23 +1,26 @@
 /**
  * PlayFusionHoops — Full-screen game route for /play/fusion-hoops.
  *
- * Eye-tracking architecture:
- *   • face_cursor.py (port 8767) moves the OS cursor using face tracking.
- *   • The game reads normal mouse events — no gazePosRef needed.
- *   • useEyeCursor sends start/stop commands to face_cursor.py.
+ * Eye-tracking architecture (pure JS, no Python server):
+ *   • useFaceCursor runs MediaPipe WASM in-browser
+ *   • gazePosRef holds viewport-pixel gaze position
+ *   • FusionHoops reads gazePosRef → determines if gaze is inside rim zone
+ *   • Touch/click for shooting still works independently
  */
-import { useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import useEyeCursor from "../hooks/useEyeCursor";
+import { useFaceCursorContext } from "../context/FaceCursorContext";
 import FusionHoops from "../games/FusionHoops";
 import EyeTrackingBadge from "../components/eye-tracking/EyeTrackingBadge";
 
 export default function PlayFusionHoops() {
   const navigate = useNavigate();
-  const [isRunning, setIsRunning] = useState(false);
+  const { setActive, gazePosRef } = useFaceCursorContext();
 
-  // Connect to face_cursor.py — it controls the OS cursor directly
-  const { status } = useEyeCursor(true);
+  useEffect(() => {
+    setActive(true);
+    return () => setActive(false);
+  }, [setActive]);
 
   const handleClose = () => navigate("/dashboard", { replace: true });
 
@@ -32,12 +35,10 @@ export default function PlayFusionHoops() {
       alignItems: "center",
       justifyContent: "center",
     }}>
-      <EyeTrackingBadge status={status} />
+      <EyeTrackingBadge />
 
-      <div style={{
-        position: "absolute", inset: 0, display: "flex",
-      }}>
-        <FusionHoops onClose={handleClose} onRunningChange={setIsRunning} />
+      <div style={{ position: "absolute", inset: 0, display: "flex" }}>
+        <FusionHoops onClose={handleClose} gazePosRef={gazePosRef} />
       </div>
     </div>
   );

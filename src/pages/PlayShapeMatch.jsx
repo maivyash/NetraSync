@@ -1,23 +1,26 @@
 /**
  * PlayShapeMatch — Full-screen game route for /play/shape-match.
  *
- * Eye-tracking architecture:
- *   • face_cursor.py moves the OS cursor using face tracking.
- *   • The game reads normal mouse events globally to capture movements.
- *   • useEyeCursor sends start/stop commands to face_cursor.py.
+ * Eye-tracking architecture (pure JS, no Python server):
+ *   • useFaceCursor runs MediaPipe WASM in-browser
+ *   • gazePosRef holds viewport-pixel gaze position
+ *   • ShapeMatch reads gazePosRef for mousePos/dragPos
+ *   • Touch grab/drop still works independently on mobile
  */
-import { useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import useEyeCursor from "../hooks/useEyeCursor";
+import { useFaceCursorContext } from "../context/FaceCursorContext";
 import ShapeMatch from "../games/ShapeMatch";
 import EyeTrackingBadge from "../components/eye-tracking/EyeTrackingBadge";
 
 export default function PlayShapeMatch() {
   const navigate = useNavigate();
-  const [isRunning, setIsRunning] = useState(false);
+  const { setActive, gazePosRef } = useFaceCursorContext();
 
-  // Connect to face_cursor.py — it controls the OS cursor directly
-  const { status } = useEyeCursor(true);
+  useEffect(() => {
+    setActive(true);
+    return () => setActive(false);
+  }, [setActive]);
 
   const handleClose = () => navigate("/dashboard", { replace: true });
 
@@ -32,12 +35,10 @@ export default function PlayShapeMatch() {
       alignItems: "center",
       justifyContent: "center",
     }}>
-      <EyeTrackingBadge status={status} />
+      <EyeTrackingBadge />
 
-      <div style={{
-        position: "absolute", inset: 0, display: "flex",
-      }}>
-        <ShapeMatch onClose={handleClose} onRunningChange={setIsRunning} />
+      <div style={{ position: "absolute", inset: 0, display: "flex" }}>
+        <ShapeMatch onClose={handleClose} gazePosRef={gazePosRef} />
       </div>
     </div>
   );

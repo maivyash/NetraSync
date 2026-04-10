@@ -156,7 +156,7 @@ const formatRaceTime = (seconds) => {
   return `${mm}:${ss}`;
 };
 
-export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
+export default function OrbDrive({ onClose, onExit, onRunningChange, gazePosRef } = {}) {
   const navigate = useNavigate();
 
   const exitToMenu = () => {
@@ -231,8 +231,9 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
     return mode.orbBaseSize;
   })();
 
+  // Mouse / touch fallback — still works when face cursor is inactive
   const handleMouseMove = (e) => {
-    if (!orbPanelRef.current) return;
+    if (!orbPanelRef.current || gazePosRef) return; // face cursor takes priority
     const rect = orbPanelRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -241,6 +242,27 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
       y: Math.max(0, Math.min(100, y)),
     };
   };
+
+  // Face cursor → mouseRef bridge
+  // Converts viewport-pixel gaze to panel-percentage so all game logic stays unchanged
+  useEffect(() => {
+    if (!gazePosRef) return;
+    let rafId;
+    const sync = () => {
+      const gp = gazePosRef.current;
+      const panel = orbPanelRef.current;
+      if (gp && panel && gp.x > 0) {
+        const rect = panel.getBoundingClientRect();
+        mouseRef.current = {
+          x: Math.max(0, Math.min(100, ((gp.x - rect.left) / rect.width) * 100)),
+          y: Math.max(0, Math.min(100, ((gp.y - rect.top)  / rect.height) * 100)),
+        };
+      }
+      rafId = requestAnimationFrame(sync);
+    };
+    rafId = requestAnimationFrame(sync);
+    return () => cancelAnimationFrame(rafId);
+  }, [gazePosRef]);
 
   const startGame = () => {
     setRunning(true);

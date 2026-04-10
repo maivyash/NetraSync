@@ -85,7 +85,7 @@ const getShapeSVG = (type, size) => {
   }
 };
 
-export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
+export default function ShapeMatch({ onClose, onExit, onRunningChange, gazePosRef } = {}) {
   const navigate = useNavigate();
 
   const exitToMenu = () => {
@@ -125,11 +125,12 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
   const currentShape = matchSequence[currentIndex];
 
   const handleGlobalMouseMove = useCallback((e) => {
+    if (gazePosRef) return; // face cursor takes priority
     setMousePos({ x: e.clientX, y: e.clientY });
     if (isDragging) {
       setDragPos({ x: e.clientX, y: e.clientY });
     }
-  }, [isDragging]);
+  }, [isDragging, gazePosRef]);
 
   useEffect(() => {
     if (running) {
@@ -137,6 +138,25 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
       return () => window.removeEventListener("mousemove", handleGlobalMouseMove);
     }
   }, [running, handleGlobalMouseMove]);
+
+  // Face cursor → mousePos / dragPos bridge
+  // On mobile: touch events still fire for grab/drop; gaze drives the cursor position
+  useEffect(() => {
+    if (!gazePosRef || !running) return;
+    let rafId;
+    const sync = () => {
+      const gp = gazePosRef.current;
+      if (gp && gp.x > 0) {
+        setMousePos({ x: gp.x, y: gp.y });
+        if (isDragging) {
+          setDragPos({ x: gp.x, y: gp.y });
+        }
+      }
+      rafId = requestAnimationFrame(sync);
+    };
+    rafId = requestAnimationFrame(sync);
+    return () => cancelAnimationFrame(rafId);
+  }, [gazePosRef, running, isDragging]);
 
   const generateSequence = (num) => {
     const seq = [];

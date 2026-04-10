@@ -1,23 +1,27 @@
 /**
  * PlayOrbDrive — Full-screen game route for /play/orb-drive.
  *
- * Eye-tracking architecture:
- *   • face_cursor.py (port 8767) moves the OS cursor using face tracking.
- *   • The game reads normal mouse events — no gazePosRef needed.
- *   • useEyeCursor sends start/stop commands to face_cursor.py.
+ * Eye-tracking architecture (pure JS, no Python server):
+ *   • useFaceCursor runs MediaPipe WASM in-browser
+ *   • gazePosRef holds viewport-pixel gaze position
+ *   • OrbDrive reads gazePosRef → converts to panel-% → moves virtual cursor
+ *   • Touch events on mobile still work independently
  */
-import { useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import useEyeCursor from "../hooks/useEyeCursor";
+import { useFaceCursorContext } from "../context/FaceCursorContext";
 import OrbDrive from "../games/OrbDrive";
 import EyeTrackingBadge from "../components/eye-tracking/EyeTrackingBadge";
 
 export default function PlayOrbDrive() {
   const navigate = useNavigate();
-  const [isRunning, setIsRunning] = useState(false);
+  const { setActive, gazePosRef } = useFaceCursorContext();
 
-  // Connect to face_cursor.py — it controls the OS cursor directly
-  const { status } = useEyeCursor(true);
+  // Activate face cursor when this page mounts, deactivate on unmount
+  useEffect(() => {
+    setActive(true);
+    return () => setActive(false);
+  }, [setActive]);
 
   const handleClose = () => navigate("/dashboard", { replace: true });
 
@@ -32,12 +36,10 @@ export default function PlayOrbDrive() {
       alignItems: "center",
       justifyContent: "center",
     }}>
-      <EyeTrackingBadge status={status} />
+      <EyeTrackingBadge />
 
-      <div style={{
-        position: "absolute", inset: 0, display: "flex",
-      }}>
-        <OrbDrive onClose={handleClose} onRunningChange={setIsRunning} />
+      <div style={{ position: "absolute", inset: 0, display: "flex" }}>
+        <OrbDrive onClose={handleClose} gazePosRef={gazePosRef} />
       </div>
     </div>
   );

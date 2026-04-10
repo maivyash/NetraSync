@@ -1,16 +1,31 @@
 /**
- * EyeTrackingBadge — Connection status indicator shown during eye-tracked gameplay.
+ * EyeTrackingBadge — Status indicator shown during face-tracked gameplay.
+ * Reads status from FaceCursorContext.
  *
  * Props:
- *   status – "idle" | "connecting" | "active" | "error"
+ *   status (optional) — override if passed directly; otherwise reads from context
  */
-export default function EyeTrackingBadge({ status }) {
+import { useFaceCursorContext } from "../../context/FaceCursorContext";
+
+export default function EyeTrackingBadge({ status: statusProp }) {
+  let contextStatus = "idle";
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const ctx = useFaceCursorContext();
+    contextStatus = ctx.status;
+  } catch {
+    // If used outside provider, statusProp must be passed
+  }
+
+  const status = statusProp ?? contextStatus;
+
   const config = {
-    idle:       { text: "EYE CURSOR OFF",      color: "#64748b", bg: "rgba(100,116,139,0.15)", pulse: false },
-    connecting: { text: "CALIBRATING…",        color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  pulse: true  },
-    active:     { text: "👁 FACE CONTROL ON",   color: "#00ff88", bg: "rgba(0,255,136,0.12)",   pulse: true  },
-    paused:     { text: "⏸ FACE LOST",          color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  pulse: true  },
-    error:      { text: "⚠ CONNECTION ERROR",   color: "#ef4444", bg: "rgba(239,68,68,0.15)",   pulse: false },
+    idle:        { text: "👁 FACE CURSOR OFF",   color: "#64748b", bg: "rgba(100,116,139,0.15)", pulse: false },
+    connecting:  { text: "⏳ INITIALIZING…",     color: "#a855f7", bg: "rgba(168,85,247,0.15)",  pulse: true  },
+    calibrating: { text: "🎯 CALIBRATING…",      color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  pulse: true  },
+    active:      { text: "👁 FACE CONTROL ON",   color: "#00ff88", bg: "rgba(0,255,136,0.12)",   pulse: true  },
+    paused:      { text: "⏸ FACE LOST",          color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  pulse: true  },
+    error:       { text: "⚠ CAMERA ERROR",       color: "#ef4444", bg: "rgba(239,68,68,0.15)",   pulse: false },
   };
   const c = config[status] || config.idle;
 
@@ -37,10 +52,11 @@ export default function EyeTrackingBadge({ status }) {
         boxShadow: `0 0 6px ${c.color}80`,
       }} />
       <span style={{
-        fontFamily: "var(--font-heading)",
+        fontFamily: "var(--font-heading, 'Inter', sans-serif)",
         fontSize: "0.65rem",
         letterSpacing: 1.2,
         color: c.color,
+        fontWeight: 700,
       }}>{c.text}</span>
 
       <style>{`

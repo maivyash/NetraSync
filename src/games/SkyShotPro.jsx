@@ -14,13 +14,14 @@ const LEVEL_CONFIGS = [
 
 const ARROW_SPEED = 18;
 
-export default function SkyShotPro({ onClose, onRunningChange } = {}) {
+export default function SkyShotPro({ onClose, onRunningChange, gazePosRef } = {}) {
   const canvasRef = useRef(null);
   const stateRef  = useRef({
     targets: [], arrows: [], particles: [], planets: [], asteroids: [], rockets: [],
     bowPull: 0, isShooting: false,
     shotsFired: 0, hitsLanded: 0, comboCount: 0, lastHitTime: 0, currScore: 0,
     animId: null, clickHandler: null, W: 0, H: 0, ended: false,
+    gazePosRef: null, // will be kept in sync below
   });
 
   const [score,       setScore]       = useState(0);
@@ -540,14 +541,23 @@ export default function SkyShotPro({ onClose, onRunningChange } = {}) {
     const clickHandler = (e) => {
       const rect = canvas.getBoundingClientRect();
       const scaleX = s.W / rect.width, scaleY = s.H / rect.height;
-      const cx = (e.clientX - rect.left) * scaleX;
-      const cy = (e.clientY - rect.top)  * scaleY;
+
+      // If face cursor is active, shoot toward gaze position instead of click
+      let cx, cy;
+      const gp = s.gazePosRef?.current;
+      if (gp && gp.x > 0) {
+        cx = (gp.x - rect.left) * scaleX;
+        cy = (gp.y - rect.top)  * scaleY;
+      } else {
+        cx = (e.clientX - rect.left) * scaleX;
+        cy = (e.clientY - rect.top)  * scaleY;
+      }
 
       s.shotsFired++; setShotsFired(s.shotsFired);
       s.isShooting = true; s.bowPull = 1;
       setTimeout(() => { s.isShooting = false; }, 80);
 
-      // Always shoot straight towards the clicked coordinate
+      // Always shoot straight towards the target coordinate
       playSound("shoot");
       const dx = cx - (bowX + 28), dy = cy - bowY;
       const dist = Math.hypot(dx, dy);
@@ -565,9 +575,24 @@ export default function SkyShotPro({ onClose, onRunningChange } = {}) {
     };
 
     canvas.addEventListener("click", clickHandler);
+    // Also support touch tap for mobile
+    const touchHandler = (e) => {
+      e.preventDefault();
+      clickHandler({ clientX: e.touches[0]?.clientX ?? 0, clientY: e.touches[0]?.clientY ?? 0 });
+    };
+    canvas.addEventListener("touchstart", touchHandler, { passive: false });
     s.clickHandler = clickHandler;
-    return () => { cancelAnimationFrame(s.animId); canvas.removeEventListener("click", clickHandler); };
+    return () => {
+      cancelAnimationFrame(s.animId);
+      canvas.removeEventListener("click", clickHandler);
+      canvas.removeEventListener("touchstart", touchHandler);
+    };
   }, [gameState, level]);
+
+  /* ── Keep gazePosRef in stateRef so click closure can read it ── */
+  useEffect(() => {
+    stateRef.current.gazePosRef = gazePosRef ?? null;
+  }, [gazePosRef]);
 
   /* ── Timer ── */
   useEffect(() => {

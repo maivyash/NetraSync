@@ -38,7 +38,7 @@ const CROWD_ROWS = [
 ];
 const CROWD = CROWD_ROWS.flat();
 
-export default function FusionHoops({ onClose, onRunningChange } = {}) {
+export default function FusionHoops({ onClose, onRunningChange, gazePosRef } = {}) {
   const navigate = useNavigate();
   const [courtIdx, setCourtIdx] = useState(0);
   const [score, setScore] = useState(0);
@@ -200,8 +200,9 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
     return () => clearInterval(loop);
   }, [gameStarted, gameOver, courtIdx]);
 
-  /* ---- mouse tracking (only when NOT using pupil control) ---- */
+  /* ---- mouse/touch tracking (fallback when face cursor inactive) ---- */
   const handleMouseMove = useCallback((e) => {
+    if (gazePosRef) return; // face cursor takes priority
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -209,10 +210,34 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
     const dy = y - (rimPos.y - 5);
     const dist = Math.sqrt(dx * dx + dy * dy);
     mouseInZone.current = dist < court.zone;
-  }, [rimPos, court.zone]);
+  }, [rimPos, court.zone, gazePosRef]);
 
-  // face_cursor.py drives the OS cursor directly via pyautogui,
-  // so handleMouseMove fires naturally — no manual gaze mapping needed.
+  // Face cursor → mouseInZone bridge
+  // Reads gazePosRef on every frame and tests if gaze is inside the rim zone
+  useEffect(() => {
+    if (!gazePosRef || !gameStarted || gameOver) return;
+    let rafId;
+    const sync = () => {
+      const gp = gazePosRef.current;
+      // We need the court wrapper element to convert viewport px → % coords
+      // The fh-wrapper covers 100vw/100vh, so we can use viewport directly
+      if (gp && gp.x > 0) {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const x = (gp.x / vw) * 100;
+        const y = (gp.y / vh) * 100;
+        const dx = x - rimPos.x;
+        const dy = y - (rimPos.y - 5);
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        mouseInZone.current = dist < court.zone;
+      }
+      rafId = requestAnimationFrame(sync);
+    };
+    rafId = requestAnimationFrame(sync);
+    return () => cancelAnimationFrame(rafId);
+  }, [gazePosRef, gameStarted, gameOver, rimPos, court.zone]);
+
+  // face cursor is now pure-JS — comment preserved for clarity
 
   /* ---- shoot ---- */
   const shoot = () => {

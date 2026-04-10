@@ -1,23 +1,26 @@
 /**
  * PlaySkyShotPro — Full-screen game route for /play/sky-shot-pro.
  *
- * Eye-tracking architecture:
- *   • face_cursor.py (port 8767) moves the OS cursor using face tracking.
- *   • The game reads normal mouse/click events — no gazePosRef needed.
- *   • useEyeCursor sends start/stop commands to face_cursor.py.
+ * Eye-tracking architecture (pure JS, no Python server):
+ *   • useFaceCursor runs MediaPipe WASM in-browser
+ *   • gazePosRef holds viewport-pixel gaze position
+ *   • SkyShotPro reads gazePosRef for aiming the bow
+ *   • Click/tap still fires the arrow independently
  */
-import { useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import useEyeCursor from "../hooks/useEyeCursor";
+import { useFaceCursorContext } from "../context/FaceCursorContext";
 import SkyShotPro from "../games/SkyShotPro";
 import EyeTrackingBadge from "../components/eye-tracking/EyeTrackingBadge";
 
 export default function PlaySkyShotPro() {
   const navigate = useNavigate();
-  const [isRunning, setIsRunning] = useState(false);
+  const { setActive, gazePosRef } = useFaceCursorContext();
 
-  // Connect to face_cursor.py — it controls the OS cursor directly
-  const { status } = useEyeCursor(true);
+  useEffect(() => {
+    setActive(true);
+    return () => setActive(false);
+  }, [setActive]);
 
   const handleClose = () => navigate("/dashboard", { replace: true });
 
@@ -25,19 +28,17 @@ export default function PlaySkyShotPro() {
     <div style={{
       position: "fixed",
       inset: 0,
-      background: "rgba(5, 8, 16, 0.98)",
+      background: "rgba(5, 8, 16, 0.95)",
       backdropFilter: "blur(10px)",
       zIndex: 2000,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
     }}>
-      <EyeTrackingBadge status={status} />
+      <EyeTrackingBadge />
 
-      <div style={{
-        position: "absolute", inset: 0, display: "flex",
-      }}>
-        <SkyShotPro onClose={handleClose} onRunningChange={setIsRunning} />
+      <div style={{ position: "absolute", inset: 0, display: "flex" }}>
+        <SkyShotPro onClose={handleClose} gazePosRef={gazePosRef} />
       </div>
     </div>
   );
