@@ -8,6 +8,9 @@ export default function Login() {
   const [form] = Form.useForm();
   const [forgotForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Auto-login: if a valid token exists, skip straight to dashboard
   useEffect(() => {
@@ -281,7 +284,48 @@ export default function Login() {
                 label="Password"
                 rules={[{ required: true, message: "Please enter your password" }]}
               >
-                <Input.Password placeholder="Enter password" style={{ height: 48 }} />
+                <div style={{ position: "relative" }}>
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter password"
+                    style={{ height: 48, paddingRight: 42 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 4,
+                      color: showPassword ? "#00f5ff" : "rgba(255,255,255,0.35)",
+                      fontSize: 18,
+                      display: "flex",
+                      alignItems: "center",
+                      transition: "color 0.2s",
+                    }}
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                        <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </Form.Item>
 
               <div style={{ marginTop: -6, marginBottom: 16, textAlign: "right" }}>
@@ -432,7 +476,47 @@ export default function Login() {
                   { min: 6, message: "Password should be at least 6 characters" },
                 ]}
               >
-                <Input.Password placeholder="Enter new password" style={{ height: 44 }} />
+                <div style={{ position: "relative" }}>
+                  <Input
+                    type={showNewPassword ? "text" : "password"}
+                    placeholder="Enter new password"
+                    style={{ height: 44, paddingRight: 42 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((v) => !v)}
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 4,
+                      color: showNewPassword ? "#00f5ff" : "rgba(255,255,255,0.35)",
+                      fontSize: 18,
+                      display: "flex",
+                      alignItems: "center",
+                      transition: "color 0.2s",
+                    }}
+                    tabIndex={-1}
+                  >
+                    {showNewPassword ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                        <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </Form.Item>
 
               <Form.Item
@@ -443,7 +527,47 @@ export default function Login() {
                   { min: 6, message: "Password should be at least 6 characters" },
                 ]}
               >
-                <Input.Password placeholder="Retype new password" style={{ height: 44 }} />
+                <div style={{ position: "relative" }}>
+                  <Input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Retype new password"
+                    style={{ height: 44, paddingRight: 42 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 4,
+                      color: showConfirmPassword ? "#00f5ff" : "rgba(255,255,255,0.35)",
+                      fontSize: 18,
+                      display: "flex",
+                      alignItems: "center",
+                      transition: "color 0.2s",
+                    }}
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                        <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </Form.Item>
 
               <button

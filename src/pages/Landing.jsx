@@ -461,7 +461,7 @@ export default function Landing() {
                         onMouseEnter={e => e.target.style.color = "#00f5ff"}
                         onMouseLeave={e => e.target.style.color = "var(--text-secondary)"}
                     >Science</a>
-                    <button className="btn-neon" onClick={() => navigate("/register")}>
+                    <button className="btn-neon" onClick={() => navigate("/login")}>
                         <span>Launch App</span>
                     </button>
                 </div>
@@ -532,7 +532,7 @@ export default function Landing() {
                         transition: "all 0.8s cubic-bezier(0.4,0,0.2,1) 0.55s",
                     }}>
                         <button className="btn-neon" style={{ fontSize: "0.95rem", padding: "14px 36px" }}
-                            onClick={() => navigate("/register")}>
+                            onClick={() => navigate("/login")}>
                             <span>⚡ Begin Training</span>
                         </button>
                         <button style={{
@@ -711,7 +711,7 @@ export default function Landing() {
                         game-based therapy platform.
                     </p>
                     <button className="btn-neon" style={{ fontSize: "1rem", padding: "16px 52px" }}
-                        onClick={() => navigate("/register")}>
+                        onClick={() => navigate("/login")}>
                         <span>⚡ Start Your Journey</span>
                     </button>
                 </div>
