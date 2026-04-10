@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import confetti from "canvas-confetti";
 import "../styles/orbdrive.css";
+import Track3D from "../components/Track3D";
 import carImg from "../assets/car.png";
 import {
   startEngine,
@@ -799,98 +800,29 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
               />
             </div>
 
-            {/* ── RIGHT: Track Panel ── */}
-            <div
-              className={"track-panel" + (carSpeed > 170 ? " od-warp" : "") + (focusStrength > 0.8 ? " od-nitro-speed" : "")}
-              style={{ "--spd": speedPct }}
-            >
-              {/* Neon guardrails */}
-              <div className="od-rail od-rail--l" aria-hidden="true" />
-              <div className="od-rail od-rail--r" aria-hidden="true" />
+            {/* ── RIGHT: 3D Track Panel ── */}
+            <div className="track-panel track-panel--3d" style={{ position: 'relative', overflow: 'hidden' }}>
+              {/* Three.js 3D track — owns playerCarRef and finishLineRef internally */}
+              <Track3D
+                speed={carSpeed}
+                speedPct={speedPct}
+                progress={progress}
+                isFocused={isFocused}
+                focusStrength={focusStrength}
+                turnState={turnState}
+                modeKey={modeKey}
+                running={running}
+                playerCarRef={playerCarRef}
+                finishLineRef={finishLineRef}
+              />
 
-              {/* Cheering Crowd */}
-              <div className="track-crowd track-crowd--l" aria-hidden="true" />
-              <div className="track-crowd track-crowd--r" aria-hidden="true" />
-
-              <div className="finish finish--fixed">
-                <div className="finish-label">🏁 FINISH</div>
-                <div className="finish-line" ref={finishLineRef} />
-              </div>
-
+              {/* Progress bar overlay */}
               <div
-                className="start-line"
-                style={{
-                  transform: `translateY(${progress * 800}px)`,
-                  opacity: Math.max(0, 1 - progress * 4)
-                }}
-              >
-                <div className="start-label">START</div>
-              </div>
-
-              <div
-                className="track-road"
-                aria-hidden="true"
-                style={{
-                  transformOrigin: 'bottom center',
-                  transform: `skewX(${turnState * -12}deg)`
-                }}
-              >
-                {/* Edge lane glow */}
-                <div className="od-lane-edge od-lane-edge--l" aria-hidden="true" />
-                <div className="od-lane-edge od-lane-edge--r" aria-hidden="true" />
-
-                {[...Array(12)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="track-line"
-                    style={{
-                      bottom: `${(i * 10 +
-                        time *
-                        carSpeed *
-                        0.09 *
-                        (mode.tunnelBaseMul + time * mode.tunnelAccelPerSec)) %
-                        120
-                        }%`,
-                      "--p": i / 12,
-                      "--xoff": `${mode.depthWarp
-                        ? Math.sin(time * 1.15 + i * 0.85) *
-                        (4 + speedPct * 10) *
-                        (modeKey === "advanced" ? 1.3 : 1)
-                        : 0
-                        }px`,
-                    }}
-                  />
-                ))}
-              </div>
-
-              {/* Outside Car */}
-              <div
-                className="car car--player"
-                ref={playerCarRef}
-                style={{
-                  bottom: `${carBottomPct}%`,
-                  "--speed": carSpeed,
-                  "--carScale": carScale,
-                  transform: `translateX(-50%) rotate(${turnState * 10}deg) translateX(${turnState * -20}px)`
-                }}
-                aria-label="Car"
-              >
-                <img src={carImg} alt="Player Car" className="orbdrive-car-img" />
-                {carSpeed > 80 && focusStrength <= 0.8 && (
-                  <div className="od-exhaust-flame" aria-hidden="true" />
-                )}
-                {focusStrength > 0.8 && (
-                  <div className="od-nitro-flame" aria-hidden="true" />
-                )}
-                <div className="od-car-shadow" aria-hidden="true" />
-              </div>
-
-              <div
-                className="progress-bar"
+                className="progress-bar od-progress-3d"
                 style={{ width: `${progress * 100}%` }}
               />
 
-              {/* Speedometer */}
+              {/* Speedometer overlay */}
               <div className="track-hud">
                 <div className="speedo-box">
                   <div className="speedo">
