@@ -3,7 +3,7 @@
  * Kept separate so Dashboard.jsx stays focused on layout and logic.
  */
 
-export const games = [
+const allGames = [
   {
     id: "orb-drive", icon: "🌀", title: "Orb Drive",
     type: "Convergence Training", progress: 72, xp: 1240,
@@ -102,7 +102,37 @@ export const games = [
       "If a drop misses, re-grab quickly and re-align before attempting again.",
     ],
   },
+  {
+    id: "sky-shot-pro", icon: "🏹", title: "Sky Shot Pro",
+    type: "Eye-Hand Coordination", progress: 0, xp: 0,
+    color: "#1a8fff", difficulty: "Medium",
+    desc: "Precision archery training — track moving targets and fire arrows to sharpen eye-hand coordination.",
+    instructions: [
+      "Choose START CHALLENGE to begin the archery session.",
+      "Targets oscillate up and down independently — track their movement carefully.",
+      "Click directly ON a moving target to shoot an arrow from the bow.",
+      "Watch the arrow fly toward the target; accurate hits earn points.",
+      "Quick consecutive hits build COMBOS for score multipliers.",
+      "Complete all targets before the timer runs out to advance to the next level.",
+    ],
+  },
 ];
+
+// Extract the required top 3 games
+const orbDrive = allGames.find(g => g.id === "orb-drive");
+const fusionHoops = allGames.find(g => g.id === "fusion-hoops");
+const skyShotPro = allGames.find(g => g.id === "sky-shot-pro");
+
+// Extract remaining games and shuffle them
+let others = allGames.filter(g => 
+  g.id !== "orb-drive" && 
+  g.id !== "fusion-hoops" && 
+  g.id !== "sky-shot-pro"
+);
+others.sort(() => Math.random() - 0.5);
+
+// The final active game order
+export const games = [orbDrive, fusionHoops, skyShotPro, ...others];
 
 export const metrics = [
   { label: "Visual Acuity", value: 78, unit: "%", color: "#00f5ff", icon: "👁" },
