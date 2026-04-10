@@ -458,8 +458,8 @@
 }
 
 .fh-backboard {
-  width: 156px;
-  height: 98px;
+  width: 120px;
+  height: 75px;
   background: linear-gradient(180deg, #f0f0f0 0%, #d9d9d9 50%, #c4c4c4 100%);
   border: 3px solid #888;
   border-radius: 3px;
@@ -471,8 +471,8 @@
 }
 
 .fh-backboard-inner {
-  width: 100px;
-  height: 68px;
+  width: 76px;
+  height: 52px;
   border: 2px solid #999;
   display: flex;
   align-items: center;
@@ -480,8 +480,8 @@
 }
 
 .fh-backboard-square {
-  width: 48px;
-  height: 40px;
+  width: 36px;
+  height: 30px;
   border: 3px solid #ef4444;
   background: rgba(239,68,68,0.06);
 }
@@ -509,7 +509,7 @@
 
 .fh-rim {
   position: relative;
-  width: 110px;
+  width: 90px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -517,8 +517,8 @@
 }
 
 .fh-rim-ring {
-  width: 110px;
-  height: 34px;
+  width: 90px;
+  height: 28px;
   border: 6px solid #a855f7;
   border-radius: 50%;
   box-shadow: 0 0 20px rgba(168,85,247,0.6), 0 0 40px rgba(168,85,247,0.25);
@@ -534,8 +534,8 @@
 
 /* ---- SVG Net Container ---- */
 .fh-net-container {
-  width: 72px;
-  height: 58px;
+  width: 60px;
+  height: 48px;
   margin-top: -10px;
   position: relative;
   z-index: 1;
@@ -886,10 +886,10 @@
 /* Ball held by player */
 .fh-ball-held {
   position: absolute;
-  top: -12px;
-  right: -20px;
-  width: 25px;
-  height: 25px;
+  top: -8px;
+  right: -16px;
+  width: 18px;
+  height: 18px;
   background: radial-gradient(circle at 35% 35%, #f97316, #c2410c);
   border-radius: 50%;
   border: 1.5px solid #9a3412;
@@ -924,8 +924,8 @@
    ============================================ */
 .fh-flying-ball {
   position: absolute;
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   background: radial-gradient(circle at 35% 35%, #f97316, #c2410c);
   border-radius: 50%;
   border: 2px solid #9a3412;
