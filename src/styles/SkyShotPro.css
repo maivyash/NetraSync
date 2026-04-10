@@ -1,0 +1,331 @@
+/* ============================================================
+   SKY SHOT PRO — Premium Archery Game Styles
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@700;900&display=swap');
+
+/* ── Root container ── */
+.ssp-root {
+  position: absolute;
+  inset: 0;
+  background: #08101e;
+  overflow: hidden;
+  font-family: 'Rajdhani', sans-serif;
+}
+
+/* ── Canvas ── */
+.ssp-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  cursor: crosshair;
+  touch-action: none;
+  display: block;
+  z-index: 1;
+}
+
+/* ══════════════════════════════════════
+   HUD
+══════════════════════════════════════ */
+.ssp-hud {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  display: flex;
+  gap: 10px;
+  padding: 12px 22px;
+  background: rgba(8, 16, 30, 0.82);
+  border: 1px solid rgba(0, 200, 255, 0.22);
+  border-radius: 14px;
+  backdrop-filter: blur(18px);
+  z-index: 50;
+  box-shadow: 0 6px 32px rgba(0,0,0,0.5), 0 0 18px rgba(0,200,255,0.08);
+  animation: hudDrop 0.55s cubic-bezier(.34,1.56,.64,1);
+}
+
+@keyframes hudDrop {
+  from { opacity: 0; transform: translateY(-30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ssp-hud-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 16px;
+  background: rgba(12, 28, 50, 0.55);
+  border: 1px solid rgba(0, 180, 255, 0.18);
+  border-radius: 10px;
+  min-width: 90px;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.ssp-hud-cell.combo-hot {
+  border-color: rgba(255, 230, 0, 0.6);
+  box-shadow: 0 0 16px rgba(255, 220, 0, 0.3);
+  animation: comboPulse 0.4s ease;
+}
+
+@keyframes comboPulse {
+  0%   { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+.ssp-hud-cell.time-danger .ssp-hud-val {
+  color: #ff4d6d !important;
+  animation: timeDanger 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes timeDanger {
+  from { text-shadow: 0 0 6px rgba(255,77,109,0.4); }
+  to   { text-shadow: 0 0 16px rgba(255,77,109,0.9); }
+}
+
+.ssp-hud-lbl {
+  font-size: 0.58rem;
+  letter-spacing: 1.8px;
+  color: rgba(140,180,220,0.7);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+}
+
+.ssp-hud-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #64c8ff;
+  line-height: 1;
+}
+
+.ssp-hud-val.gold   { color: #ffd700; text-shadow: 0 0 8px rgba(255,215,0,0.45); }
+.ssp-hud-val.cyan   { color: #00e5ff; }
+.ssp-hud-val.yellow { color: #ffe040; text-shadow: 0 0 8px rgba(255,224,64,0.5); }
+.ssp-hud-val.green  { color: #00ff88; }
+.ssp-hud-val.red    { color: #ff4d6d; }
+
+.ssp-hud-sub {
+  font-size: 0.55rem;
+  color: rgba(255,200,100,0.7);
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+/* ══════════════════════════════════════
+   OVERLAYS
+══════════════════════════════════════ */
+.ssp-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  backdrop-filter: blur(10px);
+  background: rgba(5, 10, 20, 0.7);
+}
+
+.ssp-overlay--success { background: rgba(0, 40, 30, 0.78); }
+.ssp-overlay--gold    { background: rgba(40, 30, 0, 0.85); }
+.ssp-overlay--red     { background: rgba(40, 5,  5, 0.82); }
+
+/* Card */
+.ssp-card {
+  text-align: center;
+  padding: 44px 60px;
+  background: rgba(10, 20, 38, 0.88);
+  border: 1px solid rgba(0, 200, 255, 0.22);
+  border-radius: 22px;
+  box-shadow:
+    0 24px 60px rgba(0,0,0,0.5),
+    0  0  40px rgba(0,200,255,0.08);
+  max-width: 560px;
+  width: 90%;
+  backdrop-filter: blur(24px);
+}
+
+.ssp-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2.4rem;
+  font-weight: 900;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+  color: #64c8ff;
+  text-shadow: 0 0 20px rgba(100,200,255,0.35);
+}
+.ssp-title.green { color: #00ff88; text-shadow: 0 0 20px rgba(0,255,136,0.35); }
+.ssp-title.gold  { color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.40); }
+.ssp-title.red   { color: #ff4d6d; text-shadow: 0 0 20px rgba(255,77,109,0.4); }
+
+.ssp-subtitle {
+  font-size: 1rem;
+  color: rgba(180,210,240,0.65);
+  margin-bottom: 28px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* Instructions */
+.ssp-instructions {
+  background: rgba(0, 40, 70, 0.4);
+  border-left: 3px solid #ffd700;
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin: 22px 0;
+  text-align: left;
+}
+
+.ssp-instr-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.92rem;
+  color: rgba(210,230,255,0.88);
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.ssp-instr-row b { color: #64c8ff; }
+
+/* Stats grid */
+.ssp-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.ssp-stat-item {
+  padding: 14px 10px;
+  background: rgba(18, 38, 65, 0.5);
+  border: 1px solid rgba(0, 180, 255, 0.2);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ssp-stat-lbl {
+  font-size: 0.6rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(140,180,220,0.6);
+  font-weight: 600;
+}
+
+.ssp-stat-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #64c8ff;
+}
+.ssp-stat-val.gold   { color: #ffd700; }
+.ssp-stat-val.cyan   { color: #00e5ff; }
+.ssp-stat-val.yellow { color: #ffe040; }
+.ssp-stat-val.green  { color: #00ff88; }
+
+/* ── Buttons ── */
+.ssp-btn {
+  padding: 13px 36px;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: linear-gradient(135deg, #1a8fff, #00c8ff);
+  color: #040b16;
+  box-shadow: 0 0 20px rgba(0,180,255,0.35);
+  margin-top: 10px;
+}
+
+.ssp-btn:hover {
+  box-shadow: 0 0 30px rgba(0,200,255,0.6);
+  transform: translateY(-2px);
+}
+
+.ssp-btn--green {
+  background: linear-gradient(135deg, #00c853, #00ff88);
+  color: #021a0a;
+  box-shadow: 0 0 20px rgba(0,200,80,0.4);
+}
+
+.ssp-btn--gold {
+  background: linear-gradient(135deg, #f5a700, #ffd700);
+  color: #1a0e00;
+  box-shadow: 0 0 20px rgba(255,200,0,0.4);
+}
+
+.ssp-btn--ghost {
+  background: rgba(0, 180, 255, 0.1);
+  color: #64c8ff;
+  border: 1px solid rgba(0, 180, 255, 0.4);
+  box-shadow: none;
+}
+
+.ssp-btn--ghost:hover {
+  background: rgba(0, 180, 255, 0.22);
+  border-color: rgba(0, 200, 255, 0.7);
+}
+
+/* ── CSS Animations (replaces framer-motion) ── */
+.ssp-fade-in {
+  animation: sspFadeIn 0.4s ease-out both;
+}
+@keyframes sspFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.ssp-slide-up {
+  animation: sspSlideUp 0.5s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes sspSlideUp {
+  from { opacity: 0; transform: translateY(50px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ssp-pulse {
+  animation: sspPulse 2.5s ease-in-out infinite;
+}
+@keyframes sspPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+
+.ssp-bounce {
+  animation: sspBounce 1.5s ease-in-out infinite;
+}
+@keyframes sspBounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+.ssp-wobble {
+  animation: sspWobble 1s ease-in-out infinite;
+}
+@keyframes sspWobble {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(3deg); }
+  75%      { transform: rotate(-3deg); }
+}
+
+.ssp-btn:active {
+  transform: scale(0.96);
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .ssp-hud       { display: flex; justify-content: flex-start; gap: 6px; padding: 10px 14px; }
+  .ssp-hud-cell  { min-width: 70px; padding: 8px 10px; }
+  .ssp-hud-val   { font-size: 1rem; }
+  .ssp-card      { padding: 30px 24px; }
+  .ssp-title     { font-size: 1.7rem; }
+  .ssp-stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+}
