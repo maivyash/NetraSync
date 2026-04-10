@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import confetti from "canvas-confetti";
 import "../styles/orbdrive.css";
 import Track3D from "../components/Track3D";
-import carImg from "../assets/car.png";
+import carImg from "../assets/nissancar.png";
 import {
   startEngine,
   updateEngine,
