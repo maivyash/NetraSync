@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Form, Input, Modal, message } from "antd";
+import { EyeOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { isTokenValid } from "../utils/auth";
 
@@ -260,7 +261,7 @@ export default function Login() {
         <section className="animate-fade-up" style={{ display: "flex", justifyContent: "center" }}>
           <div className="glass-card" style={{ width: "100%", maxWidth: 520, padding: "34px 36px" }}>
             <div style={{ textAlign: "center", marginBottom: 28 }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>👁</div>
+              <div style={{ fontSize: 40, marginBottom: 8, color: '#00ccff' }}><EyeOutlined /></div>
               <h2 style={{ marginBottom: 8 }}>Login</h2>
               <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", letterSpacing: 1.3, textTransform: "uppercase" }}>
                 Email + Password

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { BlockOutlined, TrophyFilled, HourglassOutlined } from "@ant-design/icons";
 import confetti from "canvas-confetti";
 import "../styles/shapematch.css";
 import {
@@ -304,7 +305,7 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
     <div className="shapematch-wrapper">
       <button className="orbdrive-close-btn" onClick={exitToMenu} type="button">✕</button>
       
-      <h3 className="shapematch-title">🧩 Shape Match</h3>
+      <h3 className="shapematch-title"><BlockOutlined /> Shape Match</h3>
       <div className="shapematch-sub">DRAG AND DROP TO TARGETS</div>
 
       {!running && phase === "idle" && (
@@ -429,7 +430,7 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
               <div style={{display:'flex', justifyContent: 'space-between', color: '#a855f7', fontSize:'1.2rem', marginTop:'10px', paddingTop:'10px', borderTop:'1px solid rgba(255,255,255,0.1)'}}>
                 <span>POINTS EARNED:</span> 
                 <span style={{fontWeight:'bold'}}>
-                  {raceResult.serverPoints != null ? `🏆 ${raceResult.serverPoints}` : '⏳'}
+                  {raceResult.serverPoints != null ? <><TrophyFilled /> {raceResult.serverPoints}</> : <HourglassOutlined spin />}
                 </span>
               </div>
             </div>

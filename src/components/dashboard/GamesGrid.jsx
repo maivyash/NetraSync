@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { games } from "../../data/dashboardData";
 import GameCard from "./GameCard";
-import { CloseOutlined } from "@ant-design/icons";
+import { CloseOutlined, PlaySquareOutlined } from "@ant-design/icons";
 import { getScoreSummary } from "../../utils/scoreApi";
 
 const PLAYABLE = new Set(["orb-drive", "fusion-hoops"]);
@@ -59,7 +59,7 @@ export default function GamesGrid() {
         <h2 style={{
           fontFamily: "var(--font-heading)", fontSize: "1rem", letterSpacing: 1,
           color: "var(--text-primary)"
-        }}>🎮 Therapy Games</h2>
+        }}><PlaySquareOutlined /> Therapy Games</h2>
         <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
           {games.length} available
         </span>

@@ -1,3 +1,5 @@
+import { EyeOutlined, UserOutlined } from "@ant-design/icons";
+
 /**
  * DashboardNav — Sticky top navigation bar with clickable profile icon.
  */
@@ -15,7 +17,7 @@ export default function DashboardNav({ onProfileClick }) {
           width: 32, height: 32, borderRadius: "50%",
           background: "linear-gradient(135deg,#00f5ff,#a855f7)",
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
-        }}>👁</div>
+        }}> <EyeOutlined /> </div>
         <span style={{ fontFamily: "var(--font-heading)", fontWeight: 900, fontSize: "1rem", color: "#fff" }}>
           NETRA<span style={{
             background: "var(--grad-accent)", WebkitBackgroundClip: "text",
@@ -57,7 +59,7 @@ export default function DashboardNav({ onProfileClick }) {
             e.target.style.transform = "scale(1)";
           }}
         >
-          🧑‍⚕️
+          <UserOutlined />
         </button>
       </div>
     </nav>

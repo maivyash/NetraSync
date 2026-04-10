@@ -2,6 +2,7 @@
  * Sidebar — Weekly chart, streak counter, and next session recommendation.
  */
 import { weekData, weekDays } from "../../data/dashboardData";
+import { LineChartOutlined, FireFilled, AimOutlined } from "@ant-design/icons";
 
 export default function Sidebar() {
   return (
@@ -12,8 +13,7 @@ export default function Sidebar() {
         <h3 style={{
           fontFamily: "var(--font-heading)", fontSize: "0.8rem", letterSpacing: 1,
           color: "var(--text-primary)", marginBottom: 20, textTransform: "uppercase"
-        }}>
-          📈 Weekly Score
+          <LineChartOutlined /> Weekly Score
         </h3>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
           {weekData.map((val, i) => (
@@ -38,7 +38,7 @@ export default function Sidebar() {
 
       {/* Active Streak */}
       <div className="glass-card animate-pulse" style={{ padding: 24, textAlign: "center" }}>
-        <div style={{ fontSize: 36, marginBottom: 8 }}>🔥</div>
+        <div style={{ fontSize: 36, marginBottom: 8, color: '#ff4d4f' }}><FireFilled /></div>
         <div style={{
           fontFamily: "var(--font-heading)", fontSize: "2.5rem", fontWeight: 900,
           color: "#ff6b35", filter: "drop-shadow(0 0 12px rgba(255,107,53,0.6))"
@@ -66,7 +66,7 @@ export default function Sidebar() {
             width: 44, height: 44, borderRadius: 10,
             background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)",
             display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
-          }}>🎯</div>
+          }}><AimOutlined /></div>
           <div>
             <div style={{ fontFamily: "var(--font-heading)", color: "#a855f7", fontSize: "0.85rem" }}>
               Focus Shift

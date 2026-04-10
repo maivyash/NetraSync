@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { DribbbleOutlined, SyncOutlined, ArrowUpOutlined } from "@ant-design/icons";
 import "../styles/FusionHoops.css";
 import {
   startCrowdAmbience,
@@ -304,7 +305,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
         <div className="fh-start-glow one" />
         <div className="fh-start-glow two" />
         <div className="fh-start-content">
-          <div className="fh-start-icon">🏀</div>
+          <div className="fh-start-icon"><DribbbleOutlined /></div>
           <h1 className="fh-start-title">FUSION HOOPS</h1>
           <p className="fh-start-sub">Focus your eyes on the rim. Build fusion. Shoot!</p>
           <button className="fh-start-btn" onClick={startGame}>▶ START GAME</button>
@@ -321,14 +322,14 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
       <div className="fh-end-screen" onClick={() => endPhase === "celebrate" && setEndPhase("results")}>
         {endPhase === "celebrate" ? (
           <div className="fh-end-pop" role="dialog" aria-label="Game finished">
-            <div className="fh-end-pop-icon" aria-hidden="true">🏀</div>
+            <div className="fh-end-pop-icon" aria-hidden="true"><DribbbleOutlined /></div>
             <div className="fh-end-pop-title">BUZZER!</div>
             <div className="fh-end-pop-sub">Final stats coming up…</div>
             <button className="fh-end-pop-skip" onClick={(e) => { e.stopPropagation(); setEndPhase("results"); }}>SHOW RESULTS</button>
           </div>
         ) : (
           <div className="fh-end-card" role="dialog" aria-label="Game over results">
-            <div className="fh-end-icon">🏀</div>
+            <div className="fh-end-icon"><DribbbleOutlined /></div>
             <h1 className="fh-end-title">GAME OVER</h1>
             <div className="fh-end-stats">
               <div className="fh-end-stat"><span className="fh-end-label">SCORE</span><span className="fh-end-val">{score}</span></div>
@@ -337,7 +338,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
               <div className="fh-end-stat"><span className="fh-end-label">COURT</span><span className="fh-end-val">{court.name}</span></div>
             </div>
             <div className="fh-end-btns">
-              <button className="fh-start-btn" onClick={startGame}>🔁 PLAY AGAIN</button>
+              <button className="fh-start-btn" onClick={startGame}><SyncOutlined /> PLAY AGAIN</button>
               <button className="fh-back-btn" onClick={exitToMenu}>← BACK</button>
             </div>
           </div>
@@ -354,7 +355,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
       {/* ---- TOP HUD ---- */}
       <div className="fh-hud">
         <div className="fh-hud-left">
-          <span className="fh-hud-logo">🏀</span>
+          <span className="fh-hud-logo"><DribbbleOutlined /></span>
           <span className="fh-hud-name">FUSION HOOPS</span>
           <span className="fh-hud-court" onClick={(e) => { e.stopPropagation(); nextCourt(); }}>{court.name}</span>
         </div>
@@ -568,7 +569,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
             border: "2px solid #a855f7", borderRadius: 12, padding: "28px 40px",
             textAlign: "center", animation: "fhPopIn 0.3s ease-out"
           }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>⬆️</div>
+            <div style={{ fontSize: 32, marginBottom: 12 }}><ArrowUpOutlined style={{color: '#00f5ff'}} /></div>
             <div style={{ fontSize: 24, fontWeight: 900, color: "#a855f7", marginBottom: 4 }}>
               LEVEL UP!
             </div>
