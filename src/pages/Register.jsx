@@ -25,12 +25,14 @@ export default function Register() {
   const [cameraStream, setCameraStream] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [formError, setFormError] = useState("");
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const classifyScore = useCallback((pct) => {
-    if (pct < 15) return { label: "Excellent — Well Aligned", color: "#00ff88" };
+    if (pct < 5) return { label: "Excellent — Well Aligned", color: "#00ff88" };
     if (pct < 40) return { label: "Mild Misalignment", color: "#00f5ff" };
     if (pct < 70) return { label: "Moderate Misalignment", color: "#f59e0b" };
     return { label: "Severe Misalignment", color: "#ff6b35" };
@@ -190,6 +192,7 @@ export default function Register() {
   const onFinish = async () => {
     try {
       const vals = await form.validateFields();
+      setFormError("");
 
       if (!capturedPhoto || alignmentScore === null) {
         message.error("Please upload or capture a photo and check alignment score before registering.");
@@ -234,6 +237,8 @@ export default function Register() {
       }, 1200);
     } catch (err) {
       if (err?.errorFields) {
+        setFormError("Fill all fields");
+        setTimeout(() => setFormError(""), 3000);
         return;
       }
 
@@ -327,7 +332,7 @@ export default function Register() {
 
         <div className="glass-card" style={{ padding: "36px 40px" }}>
           <Form form={form} layout="vertical" requiredMark={false}>
-            <SectionLabel icon="ID" text="Personal Information" />
+            <SectionLabel text="Personal Information" />
 
             <AntField name="name" label="Full Name" rules={[{ required: true, message: "Name is required" }]}>
               <Input
@@ -362,19 +367,78 @@ export default function Register() {
                 { min: 6, message: "Password should be at least 6 characters" },
               ]}
             >
-              <Input.Password
-                placeholder="Create a password"
-                style={inputStyle}
-                onFocus={(e) => (e.target.style.borderColor = "#00f5ff")}
-                onBlur={(e) => (e.target.style.borderColor = "rgba(0,245,255,0.2)")}
-              />
+              <div style={{ position: "relative" }}>
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Create a password"
+                  style={{ ...inputStyle, paddingRight: 42 }}
+                  onFocus={(e) => (e.target.style.borderColor = "#00f5ff")}
+                  onBlur={(e) => (e.target.style.borderColor = "rgba(0,245,255,0.2)")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  style={{
+                    position: "absolute",
+                    right: 10,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 4,
+                    color: showPassword ? "#00f5ff" : "rgba(255,255,255,0.35)",
+                    fontSize: 18,
+                    display: "flex",
+                    alignItems: "center",
+                    transition: "color 0.2s",
+                  }}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </AntField>
 
-            <AntField name="age" label="Age" rules={[{ required: true, message: "Age is required" }]}>
+            <AntField
+              name="age"
+              label="Age"
+              rules={[
+                { required: true, message: "Age is required" },
+                {
+                  validator: (_, value) => {
+                    if (!value) return Promise.resolve();
+                    const num = Number(value);
+                    if (!Number.isInteger(num) || num < 1 || num > 100) {
+                      return Promise.reject("Age must be between 1 and 100");
+                    }
+                    return Promise.resolve();
+                  },
+                },
+              ]}
+            >
               <Input
-                type="number"
                 placeholder="Your age"
                 style={inputStyle}
+                maxLength={3}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "");
+                  const clamped = raw === "" ? "" : String(Math.min(Number(raw), 100));
+                  form.setFieldsValue({ age: clamped });
+                }}
                 onFocus={(e) => (e.target.style.borderColor = "#00f5ff")}
                 onBlur={(e) => (e.target.style.borderColor = "rgba(0,245,255,0.2)")}
               />
@@ -395,7 +459,7 @@ export default function Register() {
               </Select>
             </AntField>
 
-            <SectionLabel icon="PH" text="Face Alignment Photo" />
+            <SectionLabel text="Face Alignment Photo" />
 
             {!capturedPhoto && photoMode !== "camera" && (
               <div style={{ display: "grid", gap: 12, marginBottom: 20 }}>
@@ -624,6 +688,23 @@ export default function Register() {
             )}
 
             <canvas ref={canvasRef} style={{ display: "none" }} />
+
+            {formError && (
+              <div
+                style={{
+                  textAlign: "center",
+                  color: "#ff6b6b",
+                  fontSize: "0.82rem",
+                  fontFamily: "var(--font-heading)",
+                  letterSpacing: 0.5,
+                  padding: "8px 0",
+                  marginBottom: 6,
+                  animation: "fadeIn 0.3s ease",
+                }}
+              >
+                ⚠ {formError}
+              </div>
+            )}
 
             <button
               className="btn-neon"

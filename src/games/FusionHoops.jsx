@@ -12,13 +12,12 @@ import {
   playBallBounce,
 } from "./FusionHoopsAudio";
 import { recordDailyPracticeScore } from "../utils/weeklyProgress";
-import { submitScore } from "../utils/scoreApi";
 
 /* ---- court / level config ---- */
 const COURTS = [
-  { name: "LEVEL 1: OPEN COURT", rimMove: 0.5, holdReq: 2.0, zone: 8, defenders: 2 },
-  { name: "LEVEL 2: STREET BALL", rimMove: 0.4, holdReq: 1.6, zone: 7, defenders: 3 },
-  { name: "LEVEL 3: PRO ARENA",  rimMove: 0.6, holdReq: 1.2, zone: 6, defenders: 4 },
+  { name: "OPEN COURT", rimMove: 0, holdReq: 2.0, zone: 8, defenders: 2 },
+  { name: "STREET BALL", rimMove: 1, holdReq: 1.6, zone: 7, defenders: 3 },
+  { name: "PRO ARENA",  rimMove: 2, holdReq: 1.2, zone: 6, defenders: 4 },
 ];
 
 /* Base positions for up to 4 defenders (% based on court floor) */
@@ -57,14 +56,6 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
   const [splashText, setSplashText] = useState("");
   const [fusionPct, setFusionPct] = useState(0);
   const [levelUp, setLevelUp] = useState(null); // { from: string, to: string }
-  const [levelIntro, setLevelIntro] = useState(true); // show LEVEL intro before shots
-  
-  // Per-level tracking
-  const [stats, setStats] = useState([
-    { score: 0, perfect: 0, close: 0, miss: 0 },
-    { score: 0, perfect: 0, close: 0, miss: 0 },
-    { score: 0, perfect: 0, close: 0, miss: 0 },
-  ]);
 
   /* ball throwing state */
   const [ballFlying, setBallFlying] = useState(false);
@@ -105,20 +96,8 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
     holdRef.current = 0;
     moveRef.current = 0;
     setRimPos({ x: 50, y: 38 });
-    setMessage("GET READY!");
+    setMessage("AIM AT THE RIM!");
     startCrowdAmbience();
-    setLevelIntro(true);
-    setStats([
-      { score: 0, perfect: 0, close: 0, miss: 0 },
-      { score: 0, perfect: 0, close: 0, miss: 0 },
-      { score: 0, perfect: 0, close: 0, miss: 0 },
-    ]);
-    
-    // Level intro sequence
-    setTimeout(() => {
-      setLevelIntro(false);
-      setMessage("AIM AT THE RIM!");
-    }, 2000);
   };
 
   const exitToMenu = useCallback(() => {
@@ -134,8 +113,6 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
   }, []);
 
   /* ---- end-of-game popup phase ---- */
-  const [earnedPoints, setEarnedPoints] = useState(null);
-
   useEffect(() => {
     if (!gameOver) return;
 
@@ -150,29 +127,6 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
         score: practiceScore,
       });
 
-      // Map court index to difficulty for scoring
-      const diffMap = ["beginner", "intermediate", "advanced"];
-      const finalDifficulty = diffMap[Math.min(courtIdx, 2)];
-      const timeTaken = GAME_TIME - timeLeft;
-
-      // Submit score to SQL backend
-      submitScore({
-        gameName: "fusion-hoops",
-        difficulty: finalDifficulty,
-        timeTaken,
-        rawScore: practiceScore,
-        avgAlignment: accuracy,
-        maxSpeed: 0,
-        focusBonus: Math.round(scoreNormalized),
-      }).then((resp) => {
-        if (resp.success) {
-          console.log(`\u2705 FusionHoops score saved: ${resp.points} pts`);
-          setEarnedPoints(resp.points);
-        } else {
-          console.warn("Score save failed:", resp.error);
-        }
-      }).catch((err) => console.warn("Score submit error:", err));
-
       sessionLoggedRef.current = true;
     }
 
@@ -185,7 +139,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
 
   /* ---- timer ---- */
   useEffect(() => {
-    if (!gameStarted || gameOver || levelIntro || levelUp) return;
+    if (!gameStarted || gameOver) return;
     const t = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) { setGameOver(true); return 0; }
@@ -201,7 +155,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
     const iv = setInterval(() => {
       moveRef.current += 0.04 * court.rimMove;
       setRimPos({
-        x: 50 + Math.sin(moveRef.current) * 34,
+        x: 50 + Math.sin(moveRef.current) * 14,
         y: 38 + Math.cos(moveRef.current * 0.5) * 4,
       });
     }, 30);
@@ -231,15 +185,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
 
   /* ---- fusion loop ---- */
   useEffect(() => {
-    if (!gameStarted || gameOver || ballFlying || levelIntro || levelUp) {
-      if (ballFlying || levelIntro || levelUp) {
-        holdRef.current = 0;
-        setHoldTime(0);
-        setStability(0);
-        setFusionPct(0);
-      }
-      return;
-    }
+    if (!gameStarted || gameOver) return;
     const loop = setInterval(() => {
       if (mouseInZone.current) {
         holdRef.current += 0.05;
@@ -252,7 +198,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
       setFusionPct(Math.min(100, (holdRef.current / court.holdReq) * 100));
     }, 50);
     return () => clearInterval(loop);
-  }, [gameStarted, gameOver, courtIdx, ballFlying, levelIntro, levelUp, court.holdReq]);
+  }, [gameStarted, gameOver, courtIdx]);
 
   /* ---- mouse tracking (only when NOT using pupil control) ---- */
   const handleMouseMove = useCallback((e) => {
@@ -270,26 +216,24 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
 
   /* ---- shoot ---- */
   const shoot = () => {
-    if (!gameStarted || gameOver || ballFlying || levelUp || levelIntro) return;
+    if (!gameStarted || gameOver || ballFlying || levelUp) return;
 
-    const currentAttempts = attempts + 1;
-    setAttempts(currentAttempts);
+    setAttempts((a) => a + 1);
     setShooter((s) => (s + 1) % 3);
 
     let result;
-    let turnPts = 0;
     if (holdTime >= court.holdReq) {
-      result = "perfect";
-      turnPts = 100;
-      setScore((s) => s + turnPts);
+      result = "swish";
+      const pts = Math.round((stability / 100) * 120);
+      setScore((s) => s + pts);
       setMade((m) => m + 1);
-      setSplashText(`PERFECT! +100`);
+      setSplashText(`SWISH! +${pts}`);
       setMessage("PERFECT SHOT!");
-    } else if (holdTime >= court.holdReq * 0.4) {
+    } else if (holdTime >= court.holdReq * 0.5) {
       result = "close";
-      turnPts = Math.round((holdTime / court.holdReq) * 85);
-      setScore((s) => s + turnPts);
-      setSplashText(`CLOSE! +${turnPts}`);
+      const pts = Math.round((stability / 100) * 40);
+      setScore((s) => s + pts);
+      setSplashText(`CLOSE! +${pts}`);
       setMessage("ALMOST — HOLD LONGER");
     } else {
       result = "miss";
@@ -297,19 +241,12 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
       setMessage("MISSED — FOCUS ON RIM");
     }
 
-    setStats((prev) => {
-      const next = [...prev];
-      next[courtIdx].score += turnPts;
-      next[courtIdx][result] += 1;
-      return next;
-    });
-
     // Play ball release sound
     playBallBounce();
 
     // Play result sound after ball reaches rim (~500ms)
     setTimeout(() => {
-      if (result === "perfect") playWhistle();
+      if (result === "swish") playWhistle();
       else if (result === "close") playCloseShot();
       else playMiss();
     }, 450);
@@ -338,28 +275,17 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
       setMessage("AIM AT THE RIM!");
     }, 1400);
 
-    // auto-level-up or game end
-    setTimeout(() => {
-      if (currentAttempts % 4 === 0) {
-        if (currentAttempts >= 12) {
-          setGameOver(true);
-        } else if (courtIdx < COURTS.length - 1) {
-          const fromName = COURTS[courtIdx].name;
-          const toName = COURTS[courtIdx + 1].name;
-          setLevelUp({ from: fromName, to: toName });
-          playLevelUp();
-          setTimeout(() => {
-            setCourtIdx((c) => c + 1);
-            setLevelIntro(true);
-            setTimeout(() => {
-              setLevelIntro(false);
-              setLevelUp(null);
-              setMessage("AIM AT THE RIM!");
-            }, 2000);
-          }, 800);
-        }
-      }
-    }, 1500);
+    // auto-level-up
+    if (score > 250 * (courtIdx + 1) && courtIdx < COURTS.length - 1) {
+      const fromName = COURTS[courtIdx].name;
+      const toName = COURTS[courtIdx + 1].name;
+      setLevelUp({ from: fromName, to: toName });
+      playLevelUp();
+      setTimeout(() => {
+        setCourtIdx((c) => c + 1);
+        setTimeout(() => setLevelUp(null), 2200);
+      }, 800);
+    }
   };
 
   const nextCourt = () => setCourtIdx((c) => (c + 1) % COURTS.length);
@@ -404,41 +330,11 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
           <div className="fh-end-card" role="dialog" aria-label="Game over results">
             <div className="fh-end-icon">🏀</div>
             <h1 className="fh-end-title">GAME OVER</h1>
-            <div className="fh-end-stats" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '4px' }}>
-                <span style={{flex: 1}}>Level</span>
-                <span style={{flex: 1, textAlign: 'center'}}>Perfect</span>
-                <span style={{flex: 1, textAlign: 'center'}}>Close</span>
-                <span style={{flex: 1, textAlign: 'center'}}>Miss</span>
-                <span style={{flex: 1, textAlign: 'right'}}>Pts</span>
-              </div>
-              {stats.map((st, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{flex: 1, color: '#a855f7'}}>Lvl {i + 1}</span>
-                  <span style={{flex: 1, textAlign: 'center', color: '#00ff88'}}>{st.perfect}</span>
-                  <span style={{flex: 1, textAlign: 'center', color: '#facc15'}}>{st.close}</span>
-                  <span style={{flex: 1, textAlign: 'center', color: '#ef4444'}}>{st.miss}</span>
-                  <span style={{flex: 1, textAlign: 'right', fontWeight: 'bold'}}>{st.score}</span>
-                </div>
-              ))}
-              <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between' }}>
-                <span className="fh-end-label">TOTAL SCORE</span>
-                <span className="fh-end-val">{score}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="fh-end-label">ACCURACY</span>
-                <span className="fh-end-val">{pct}%</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="fh-end-label">TIME TAKEN</span>
-                <span className="fh-end-val">{GAME_TIME - timeLeft}s</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(0,255,136,0.3)' }}>
-                <span className="fh-end-label" style={{ color: '#00ff88', fontWeight: 700, fontSize: '1rem' }}>POINTS EARNED</span>
-                <span className="fh-end-val" style={{ color: '#00ff88', fontWeight: 900, fontSize: '1.2rem' }}>
-                  {earnedPoints != null ? `\ud83c\udfc6 ${earnedPoints}` : '\u23f3'}
-                </span>
-              </div>
+            <div className="fh-end-stats">
+              <div className="fh-end-stat"><span className="fh-end-label">SCORE</span><span className="fh-end-val">{score}</span></div>
+              <div className="fh-end-stat"><span className="fh-end-label">MADE</span><span className="fh-end-val">{made}/{attempts}</span></div>
+              <div className="fh-end-stat"><span className="fh-end-label">ACCURACY</span><span className="fh-end-val">{pct}%</span></div>
+              <div className="fh-end-stat"><span className="fh-end-label">COURT</span><span className="fh-end-val">{court.name}</span></div>
             </div>
             <div className="fh-end-btns">
               <button className="fh-start-btn" onClick={startGame}>🔁 PLAY AGAIN</button>
@@ -678,27 +574,6 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
             </div>
             <div style={{ color: "#00f5ff", fontSize: 14, marginBottom: 12 }}>
               {levelUp.from} → {levelUp.to}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Level Intro popup */}
-      {levelIntro && (
-        <div style={{
-          position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 60, pointerEvents: "none"
-        }}>
-          <div style={{
-            background: "rgba(0,0,0,0.9)", backdropFilter: "blur(12px)",
-            border: "2px solid #00f5ff", borderRadius: 12, padding: "30px 50px",
-            textAlign: "center", animation: "fhPopIn 0.4s ease-out"
-          }}>
-            <div style={{ fontSize: 40, fontWeight: 900, color: "#00f5ff", marginBottom: 8, letterSpacing: '2px' }}>
-              {court.name}
-            </div>
-            <div style={{ color: "#fff", fontSize: 18 }}>
-              Get Ready • 4 Shots
             </div>
           </div>
         </div>

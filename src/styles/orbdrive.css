@@ -350,6 +350,29 @@
   align-items: center;
 }
 
+/* 3D canvas variant overrides */
+.track-panel--3d {
+  background: #000;
+  padding: 0;
+  border: 2px solid rgba(0, 245, 255, 0.35);
+  box-shadow:
+    0 8px 48px rgba(0, 0, 0, 0.8),
+    0 0 24px rgba(0, 245, 255, 0.15);
+}
+
+/* Progress bar for 3D mode (top edge of panel) */
+.od-progress-3d {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-purple), #ff6b35);
+  box-shadow: 0 0 12px rgba(0, 245, 255, 0.8);
+  z-index: 20;
+  transition: width 0.05s linear;
+  border-radius: 0 2px 2px 0;
+}
+
 .track-panel.od-warp {
   --spd: 1;
   animation: warp-effect 0.3s ease-out;
