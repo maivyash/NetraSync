@@ -629,9 +629,9 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
              ═══════════════════════════════════════════════════ */}
           <div style={{ display: "flex", gap: 0, marginBottom: 12, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(0,245,255,0.2)" }}>
             {[
-              { key: "worm", label: <><LineChartOutlined /> Score Trend</> },
-              { key: "calibration", label: <><EyeOutlined /> Alignment Trend</> },
-              { key: "games", label: <><PlayCircleOutlined /> Per Game</> },
+              { key: "worm", label: "📈 Score Trend" },
+              { key: "calibration", label: "👁️ Alignment Trend" },
+              { key: "games", label: "🎮 Per Game" },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -882,6 +882,7 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {perGame.map((g, i) => {
                     const color = GAME_COLORS[g.gameName] || COLORS.cyan;
+                    const diffEmoji = { beginner: "🟢", intermediate: "🟡", advanced: "🔴" };
                     return (
                       <div
                         key={i}
@@ -898,7 +899,7 @@ export default function ProfileModal({ isOpen, onClose, userName }) {
                             {GAME_LABELS[g.gameName] || g.gameName}
                           </span>
                           <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>
-                            <span style={{ color: { beginner: '#00ff88', intermediate: '#ffcc00', advanced: '#ff4444' }[g.difficulty] || '#888' }}>●</span> {g.difficulty}
+                            {diffEmoji[g.difficulty] || "⚪"} {g.difficulty}
                           </span>
                         </div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>

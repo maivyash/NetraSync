@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { BlockOutlined, TrophyFilled, HourglassOutlined } from "@ant-design/icons";
 import confetti from "canvas-confetti";
 import "../styles/shapematch.css";
 import {
@@ -108,7 +107,7 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
 
   const [matchSequence, setMatchSequence] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  
+
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -121,7 +120,7 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
   const animationRef = useRef(null);
   const timeRef = useRef(0);
   const lastTimeRef = useRef(null);
-  
+
   const mode = MODES[modeKey] || MODES.beginner;
   const currentShape = matchSequence[currentIndex];
 
@@ -142,12 +141,12 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
   const generateSequence = (num) => {
     const seq = [];
     for (let i = 0; i < num; i++) {
-        // purely random for now, avoid 2 exact same in a row if possible
-        let choice = SHAPES[Math.floor(Math.random() * SHAPES.length)];
-        while (seq.length > 0 && choice === seq[seq.length - 1] && SHAPES.length > 1) {
-            choice = SHAPES[Math.floor(Math.random() * SHAPES.length)];
-        }
-        seq.push(choice);
+      // purely random for now, avoid 2 exact same in a row if possible
+      let choice = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+      while (seq.length > 0 && choice === seq[seq.length - 1] && SHAPES.length > 1) {
+        choice = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+      }
+      seq.push(choice);
     }
     return seq;
   };
@@ -198,19 +197,19 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
     playFinish();
 
     const finalTime = timeRef.current;
-    
+
     // Score based on time (ideal time ~ 3s per match)
     const idealTime = mode.numMatches * 3;
     const timeBonus = Math.max(0, idealTime - finalTime) * 10;
     const baseScore = mode.numMatches * 20;
     const diffMultipliers = { beginner: 1, intermediate: 1.5, advanced: 2.5 };
-    
+
     const practiceScore = Math.floor((baseScore + timeBonus) * diffMultipliers[modeKey]);
 
     const bestKey = `shm_best_${modeKey}`;
     const prevBest = Number.parseFloat(window.localStorage.getItem(bestKey));
     const bestTimeSec = Number.isFinite(prevBest) && prevBest > 0
-        ? Math.min(prevBest, finalTime) : finalTime;
+      ? Math.min(prevBest, finalTime) : finalTime;
     window.localStorage.setItem(bestKey, String(bestTimeSec));
 
     recordDailyPracticeScore({
@@ -228,7 +227,7 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
       if (resp.success) {
         setRaceResult((prev) => prev ? { ...prev, serverPoints: resp.points } : prev);
       }
-    }).catch(() => {});
+    }).catch(() => { });
 
     setRaceResult({
       time: finalTime,
@@ -241,7 +240,7 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
 
     try {
       confetti({ particleCount: 140, spread: 90, origin: { y: 0.6 } });
-    } catch {}
+    } catch { }
   };
 
   // Hybrid Drag Drop (Double click style or pure drag)
@@ -269,7 +268,7 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
         triggerWin();
       } else {
         setCurrentIndex(c => c + 1);
-        try { confetti({ particleCount: 30, spread: 60, origin: { x: 0.75, y: 0.5 } }); } catch {}
+        try { confetti({ particleCount: 30, spread: 60, origin: { x: 0.75, y: 0.5 } }); } catch { }
       }
     }
   };
@@ -304,8 +303,8 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
   return (
     <div className="shapematch-wrapper">
       <button className="orbdrive-close-btn" onClick={exitToMenu} type="button">✕</button>
-      
-      <h3 className="shapematch-title"><BlockOutlined /> Shape Match</h3>
+
+      <h3 className="shapematch-title">🧩 Shape Match</h3>
       <div className="shapematch-sub">DRAG AND DROP TO TARGETS</div>
 
       {!running && phase === "idle" && (
@@ -315,16 +314,16 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
       {phase === "mode" && (
         <div className="shapematch-modal-overlay">
           <div className="sm-resultCard" style={{ padding: '20px' }}>
-            <h2 style={{color: 'var(--neon-cyan)', marginBottom: '15px'}}>Select Difficulty</h2>
-            <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+            <h2 style={{ color: 'var(--neon-cyan)', marginBottom: '15px' }}>Select Difficulty</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {Object.values(MODES).map((m) => (
                 <button
                   key={m.key}
                   className={"sm-modeCard"}
                   onClick={() => selectMode(m.key)}
                 >
-                  <div style={{fontWeight: 'bold', fontSize: '1.2em'}}>{m.label}</div>
-                  <div style={{fontSize: '0.8em', color: 'gray'}}>{m.desc}</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '1.2em' }}>{m.label}</div>
+                  <div style={{ fontSize: '0.8em', color: 'gray' }}>{m.desc}</div>
                 </button>
               ))}
             </div>
@@ -335,8 +334,8 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
       {phase === "ready" && (
         <div className="shapematch-modal-overlay">
           <div className="sm-resultCard">
-            <h2 style={{color: '#fff', marginBottom: '15px'}}>Grab and Match!</h2>
-            <button className="orbdrive-start-btn" style={{position:'static', transform:'none', marginTop:'15px'}} onClick={startCountdown}>
+            <h2 style={{ color: '#fff', marginBottom: '15px' }}>Grab and Match!</h2>
+            <button className="orbdrive-start-btn" style={{ position: 'static', transform: 'none', marginTop: '15px' }} onClick={startCountdown}>
               Yes, Start
             </button>
           </div>
@@ -345,7 +344,7 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
 
       {phase === "countdown" && (
         <div className="shapematch-modal-overlay">
-          <div style={{fontSize: '8rem', color: '#00ff88', fontWeight: '900', textShadow: '0 0 30px #00ff88'}}>
+          <div style={{ fontSize: '8rem', color: '#00ff88', fontWeight: '900', textShadow: '0 0 30px #00ff88' }}>
             {countdown}
           </div>
         </div>
@@ -370,7 +369,7 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
               <div className="shapematch-zone-label">SOURCE</div>
               {/* Only show source object if not dragging currently, or keep it translucent if dragging?
                   Better: keep it absolute at cursor if dragging, else in exact center. */}
-              <div 
+              <div
                 className={`sm-shape ${isDragging ? 'is-dragging' : ''}`}
                 onMouseDown={handleGrabToggle}
                 style={{
@@ -395,7 +394,7 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
             {/* Target Area */}
             <div className="shapematch-zone">
               <div className="shapematch-zone-label">TARGET AREA</div>
-              <div 
+              <div
                 ref={targetAreaRef}
                 className="sm-target"
                 style={{ '--size': `${mode.shapeSize}px` }}
@@ -412,40 +411,40 @@ export default function ShapeMatch({ onClose, onExit, onRunningChange } = {}) {
       {resultOpen && raceResult && (
         <div className="shapematch-modal-overlay">
           <div className="sm-resultCard">
-            <h2 style={{color: '#00ff88', marginBottom: '20px'}}>SESSION COMPLETE!</h2>
-            
-            <div style={{display:'flex', flexDirection:'column', gap:'10px', marginBottom: '20px', textAlign: 'left'}}>
-              <div style={{display:'flex', justifyContent: 'space-between', color: '#fff'}}>
-                <span>TIME:</span> <span style={{fontWeight:'bold'}}>{formatTime(raceResult.time)}</span>
+            <h2 style={{ color: '#00ff88', marginBottom: '20px' }}>SESSION COMPLETE!</h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px', textAlign: 'left' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff' }}>
+                <span>TIME:</span> <span style={{ fontWeight: 'bold' }}>{formatTime(raceResult.time)}</span>
               </div>
-              <div style={{display:'flex', justifyContent: 'space-between', color: '#fff'}}>
-                <span>RAW SCORE:</span> <span style={{fontWeight:'bold'}}>{raceResult.score}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff' }}>
+                <span>RAW SCORE:</span> <span style={{ fontWeight: 'bold' }}>{raceResult.score}</span>
               </div>
-              <div style={{display:'flex', justifyContent: 'space-between', color: '#fff'}}>
-                <span>DIFFICULTY:</span> <span style={{fontWeight:'bold'}}>{raceResult.difficulty}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff' }}>
+                <span>DIFFICULTY:</span> <span style={{ fontWeight: 'bold' }}>{raceResult.difficulty}</span>
               </div>
-              <div style={{display:'flex', justifyContent: 'space-between', color: '#ffcc00'}}>
-                <span>BEST TIME:</span> <span style={{fontWeight:'bold'}}>{formatTime(raceResult.best)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffcc00' }}>
+                <span>BEST TIME:</span> <span style={{ fontWeight: 'bold' }}>{formatTime(raceResult.best)}</span>
               </div>
-              <div style={{display:'flex', justifyContent: 'space-between', color: '#a855f7', fontSize:'1.2rem', marginTop:'10px', paddingTop:'10px', borderTop:'1px solid rgba(255,255,255,0.1)'}}>
-                <span>POINTS EARNED:</span> 
-                <span style={{fontWeight:'bold'}}>
-                  {raceResult.serverPoints != null ? <><TrophyFilled /> {raceResult.serverPoints}</> : <HourglassOutlined spin />}
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a855f7', fontSize: '1.2rem', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <span>POINTS EARNED:</span>
+                <span style={{ fontWeight: 'bold' }}>
+                  {raceResult.serverPoints != null ? `🏆 ${raceResult.serverPoints}` : '⏳'}
                 </span>
               </div>
             </div>
 
-            <div style={{display: 'flex', gap: '10px', justifyContent:'center'}}>
-              <button 
-                className="orbdrive-start-btn" 
-                style={{position:'static', transform:'none', padding:'10px 20px', fontSize:'1rem'}}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                className="orbdrive-start-btn"
+                style={{ position: 'static', transform: 'none', padding: '10px 20px', fontSize: '1rem' }}
                 onClick={() => {
                   setResultOpen(false);
                   setPhase("ready");
                 }}>PLAY AGAIN</button>
-              <button 
-                className="orbdrive-start-btn" 
-                style={{position:'static', transform:'none', padding:'10px 20px', fontSize:'1rem', background:'transparent', border:'2px solid gray'}}
+              <button
+                className="orbdrive-start-btn"
+                style={{ position: 'static', transform: 'none', padding: '10px 20px', fontSize: '1rem', background: 'transparent', border: '2px solid gray' }}
                 onClick={exitToMenu}>DASHBOARD</button>
             </div>
           </div>

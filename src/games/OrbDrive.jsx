@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { CarFilled, TrophyFilled, HourglassOutlined, LockOutlined, FlagFilled } from "@ant-design/icons";
 import confetti from "canvas-confetti";
 import "../styles/orbdrive.css";
 import Track3D from "../components/Track3D";
@@ -123,7 +122,7 @@ const MODES = {
     shiftEverySec: 0,
     trackLength: 1500,
     turns: [
-      { at: 0.20, dir: 1 }, 
+      { at: 0.20, dir: 1 },
       { at: 0.35, dir: -1 },
       { at: 0.65, dir: -1 },
       { at: 0.80, dir: 1 },
@@ -673,7 +672,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
         ✕
       </button>
 
-      <h3 className="orbdrive-title"><CarFilled /> OrbDrive – Focus to Win</h3>
+      <h3 className="orbdrive-title">🚗 OrbDrive – Focus to Win</h3>
       <div className="orbdrive-sub">YOUR EYES CONTROL THE SPEED</div>
 
       {resultOpen && raceResult && (
@@ -710,7 +709,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
               <div className="orbdrive-resultStat">
                 <div className="orbdrive-resultLabel">POINTS EARNED</div>
                 <div className="orbdrive-resultValue" style={{ color: '#00ff88', fontSize: '1.3em' }}>
-                  {raceResult.serverPoints != null ? <><TrophyFilled /> {raceResult.serverPoints}</> : <HourglassOutlined spin />}
+                  {raceResult.serverPoints != null ? `🏆 ${raceResult.serverPoints}` : '⏳'}
                 </div>
               </div>
             </div>
@@ -759,7 +758,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
       {phase === "carselect" && (
         <div className="orbdrive-modeOverlay" role="dialog" aria-modal="true">
           <div className="orbdrive-carSelectModal">
-            <div className="orbdrive-modeTitle"><CarFilled /> Choose Your Car</div>
+            <div className="orbdrive-modeTitle">🏎️ Choose Your Car</div>
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem', marginBottom: 24, textAlign: 'center' }}>
               Complete levels to unlock faster rides
             </p>
@@ -781,7 +780,7 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
                     {/* Lock overlay */}
                     {!unlocked && (
                       <div className="orbdrive-carLock">
-                        <span className="orbdrive-lockIcon"><LockOutlined /></span>
+                        <span className="orbdrive-lockIcon">🔒</span>
                         <span className="orbdrive-lockText">{car.tag}</span>
                       </div>
                     )}
@@ -881,8 +880,8 @@ export default function OrbDrive({ onClose, onExit, onRunningChange } = {}) {
         <div className="orbdrive-countOverlay" role="dialog" aria-modal="true">
           <div className="orbdrive-countInner">
             <div className="orbdrive-flags" aria-hidden="true">
-              <span className="orbdrive-flag left"><FlagFilled /></span>
-              <span className="orbdrive-flag right"><FlagFilled /></span>
+              <span className="orbdrive-flag left">🏁</span>
+              <span className="orbdrive-flag right">🏁</span>
             </div>
             <div className="orbdrive-countNum">{countdown}</div>
           </div>

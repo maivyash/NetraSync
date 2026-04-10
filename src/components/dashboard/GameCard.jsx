@@ -8,17 +8,9 @@
  *   onToggle   – called when card body is clicked (toggles active)
  *   onHover    – called onMouseEnter
  *   onLeave    – called onMouseLeave
-import { StarFilled, DribbbleOutlined, CarFilled, BlockOutlined, AimOutlined, AppstoreOutlined, DashboardOutlined } from "@ant-design/icons";
-
-const GAME_ICONS = {
-  "orb-drive": <CarFilled />,
-  "focus-shift": <AimOutlined />,
-  "fusion-hoops": <DribbbleOutlined />,
-  "depth-arena": <AppstoreOutlined />,
-  "shape-match": <BlockOutlined />,
-  "perimeter-run": <DashboardOutlined />
-};
-
+ *   onInstructions – called when Instructions button is clicked
+ *   onPlay     – called when the PLAY button is clicked
+ */
 export default function GameCard({
   game: g,
   earnedPoints = 0,
@@ -51,7 +43,7 @@ export default function GameCard({
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24,
           boxShadow: isHovered ? `0 0 16px ${g.color}40` : "none",
           transition: "box-shadow 0.3s",
-        }}>{GAME_ICONS[g.id] || g.icon}</div>
+        }}>{g.icon}</div>
         <div style={{ flex: 1 }}>
           <div style={{
             fontFamily: "var(--font-heading)", color: g.color,
@@ -96,7 +88,7 @@ export default function GameCard({
       {/* Footer: XP + Play */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ color: "var(--text-muted)", fontSize: "0.72rem" }}>
-          <StarFilled style={{color: '#facc15'}} /> {g.xp.toLocaleString()} XP
+          ⭐ {g.xp.toLocaleString()} XP
         </span>
         <div style={{ display: "flex", gap: 8 }}>
           <button

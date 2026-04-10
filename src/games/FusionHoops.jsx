@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { DribbbleOutlined, SyncOutlined, ArrowUpOutlined } from "@ant-design/icons";
 import "../styles/FusionHoops.css";
 import {
   startCrowdAmbience,
@@ -18,24 +17,24 @@ import { recordDailyPracticeScore } from "../utils/weeklyProgress";
 const COURTS = [
   { name: "OPEN COURT", rimMove: 0, holdReq: 2.0, zone: 8, defenders: 2 },
   { name: "STREET BALL", rimMove: 1, holdReq: 1.6, zone: 7, defenders: 3 },
-  { name: "PRO ARENA",  rimMove: 2, holdReq: 1.2, zone: 6, defenders: 4 },
+  { name: "PRO ARENA", rimMove: 2, holdReq: 1.2, zone: 6, defenders: 4 },
 ];
 
 /* Base positions for up to 4 defenders (% based on court floor) */
 const DEF_BASE = [
-  { x: 72, y: 30, num: "5",  speed: 0.6,  rx: 10, ry: 6  },
-  { x: 45, y: 22, num: "10", speed: 0.45, rx: 12, ry: 5  },
-  { x: 28, y: 34, num: "14", speed: 0.55, rx: 8,  ry: 8  },
-  { x: 58, y: 40, num: "21", speed: 0.7,  rx: 14, ry: 4  },
+  { x: 72, y: 30, num: "5", speed: 0.6, rx: 10, ry: 6 },
+  { x: 45, y: 22, num: "10", speed: 0.45, rx: 12, ry: 5 },
+  { x: 28, y: 34, num: "14", speed: 0.55, rx: 8, ry: 8 },
+  { x: 58, y: 40, num: "21", speed: 0.7, rx: 14, ry: 4 },
 ];
 
 const GAME_TIME = 90;
 
 /* ---- crowd rows ---- */
 const CROWD_ROWS = [
-  Array.from({ length: 28 }, (_, i) => ({ id: `r0-${i}`, left: 2 + i * 3.5, top: 12 + Math.random() * 8, color: ["#ef4444","#3b82f6","#22c55e","#facc15","#a855f7","#f97316","#ec4899","#14b8a6","#ffffff","#64748b"][i % 10], size: 5 + Math.random() * 3, delay: Math.random() * 3 })),
-  Array.from({ length: 32 }, (_, i) => ({ id: `r1-${i}`, left: 1 + i * 3.1, top: 28 + Math.random() * 8, color: ["#ef4444","#3b82f6","#22c55e","#facc15","#a855f7","#f97316","#ec4899","#14b8a6","#ffffff","#64748b"][(i + 3) % 10], size: 5 + Math.random() * 3, delay: Math.random() * 3 })),
-  Array.from({ length: 36 }, (_, i) => ({ id: `r2-${i}`, left: 0 + i * 2.8, top: 44 + Math.random() * 8, color: ["#ef4444","#3b82f6","#22c55e","#facc15","#a855f7","#f97316","#ec4899","#14b8a6","#ffffff","#64748b"][(i + 5) % 10], size: 5 + Math.random() * 4, delay: Math.random() * 3 })),
+  Array.from({ length: 28 }, (_, i) => ({ id: `r0-${i}`, left: 2 + i * 3.5, top: 12 + Math.random() * 8, color: ["#ef4444", "#3b82f6", "#22c55e", "#facc15", "#a855f7", "#f97316", "#ec4899", "#14b8a6", "#ffffff", "#64748b"][i % 10], size: 5 + Math.random() * 3, delay: Math.random() * 3 })),
+  Array.from({ length: 32 }, (_, i) => ({ id: `r1-${i}`, left: 1 + i * 3.1, top: 28 + Math.random() * 8, color: ["#ef4444", "#3b82f6", "#22c55e", "#facc15", "#a855f7", "#f97316", "#ec4899", "#14b8a6", "#ffffff", "#64748b"][(i + 3) % 10], size: 5 + Math.random() * 3, delay: Math.random() * 3 })),
+  Array.from({ length: 36 }, (_, i) => ({ id: `r2-${i}`, left: 0 + i * 2.8, top: 44 + Math.random() * 8, color: ["#ef4444", "#3b82f6", "#22c55e", "#facc15", "#a855f7", "#f97316", "#ec4899", "#14b8a6", "#ffffff", "#64748b"][(i + 5) % 10], size: 5 + Math.random() * 4, delay: Math.random() * 3 })),
 ];
 const CROWD = CROWD_ROWS.flat();
 
@@ -305,7 +304,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
         <div className="fh-start-glow one" />
         <div className="fh-start-glow two" />
         <div className="fh-start-content">
-          <div className="fh-start-icon"><DribbbleOutlined /></div>
+          <div className="fh-start-icon">🏀</div>
           <h1 className="fh-start-title">FUSION HOOPS</h1>
           <p className="fh-start-sub">Focus your eyes on the rim. Build fusion. Shoot!</p>
           <button className="fh-start-btn" onClick={startGame}>▶ START GAME</button>
@@ -322,14 +321,14 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
       <div className="fh-end-screen" onClick={() => endPhase === "celebrate" && setEndPhase("results")}>
         {endPhase === "celebrate" ? (
           <div className="fh-end-pop" role="dialog" aria-label="Game finished">
-            <div className="fh-end-pop-icon" aria-hidden="true"><DribbbleOutlined /></div>
+            <div className="fh-end-pop-icon" aria-hidden="true">🏀</div>
             <div className="fh-end-pop-title">BUZZER!</div>
             <div className="fh-end-pop-sub">Final stats coming up…</div>
             <button className="fh-end-pop-skip" onClick={(e) => { e.stopPropagation(); setEndPhase("results"); }}>SHOW RESULTS</button>
           </div>
         ) : (
           <div className="fh-end-card" role="dialog" aria-label="Game over results">
-            <div className="fh-end-icon"><DribbbleOutlined /></div>
+            <div className="fh-end-icon">🏀</div>
             <h1 className="fh-end-title">GAME OVER</h1>
             <div className="fh-end-stats">
               <div className="fh-end-stat"><span className="fh-end-label">SCORE</span><span className="fh-end-val">{score}</span></div>
@@ -338,7 +337,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
               <div className="fh-end-stat"><span className="fh-end-label">COURT</span><span className="fh-end-val">{court.name}</span></div>
             </div>
             <div className="fh-end-btns">
-              <button className="fh-start-btn" onClick={startGame}><SyncOutlined /> PLAY AGAIN</button>
+              <button className="fh-start-btn" onClick={startGame}>🔁 PLAY AGAIN</button>
               <button className="fh-back-btn" onClick={exitToMenu}>← BACK</button>
             </div>
           </div>
@@ -355,7 +354,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
       {/* ---- TOP HUD ---- */}
       <div className="fh-hud">
         <div className="fh-hud-left">
-          <span className="fh-hud-logo"><DribbbleOutlined /></span>
+          <span className="fh-hud-logo">🏀</span>
           <span className="fh-hud-name">FUSION HOOPS</span>
           <span className="fh-hud-court" onClick={(e) => { e.stopPropagation(); nextCourt(); }}>{court.name}</span>
         </div>
@@ -421,18 +420,18 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
             <div className="fh-net-container">
               <svg className="fh-net-svg" viewBox="0 0 60 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 {/* Outer strings */}
-                <path d="M2 0 C4 12, 8 24, 14 40" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2"/>
-                <path d="M10 0 C11 10, 14 22, 18 40" stroke="rgba(255,255,255,0.55)" strokeWidth="1"/>
-                <path d="M20 0 C20 12, 22 24, 24 42" stroke="rgba(255,255,255,0.5)" strokeWidth="1"/>
-                <path d="M30 0 C30 14, 30 28, 30 46" stroke="rgba(255,255,255,0.55)" strokeWidth="1"/>
-                <path d="M40 0 C40 12, 38 24, 36 42" stroke="rgba(255,255,255,0.5)" strokeWidth="1"/>
-                <path d="M50 0 C49 10, 46 22, 42 40" stroke="rgba(255,255,255,0.55)" strokeWidth="1"/>
-                <path d="M58 0 C56 12, 52 24, 46 40" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2"/>
+                <path d="M2 0 C4 12, 8 24, 14 40" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2" />
+                <path d="M10 0 C11 10, 14 22, 18 40" stroke="rgba(255,255,255,0.55)" strokeWidth="1" />
+                <path d="M20 0 C20 12, 22 24, 24 42" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                <path d="M30 0 C30 14, 30 28, 30 46" stroke="rgba(255,255,255,0.55)" strokeWidth="1" />
+                <path d="M40 0 C40 12, 38 24, 36 42" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
+                <path d="M50 0 C49 10, 46 22, 42 40" stroke="rgba(255,255,255,0.55)" strokeWidth="1" />
+                <path d="M58 0 C56 12, 52 24, 46 40" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2" />
                 {/* Cross strings */}
-                <path d="M4 8 Q15 12, 30 10 Q45 8, 56 10" stroke="rgba(255,255,255,0.3)" strokeWidth="0.8"/>
-                <path d="M8 18 Q18 22, 30 20 Q42 18, 52 20" stroke="rgba(255,255,255,0.3)" strokeWidth="0.8"/>
-                <path d="M12 28 Q20 32, 30 30 Q40 28, 48 30" stroke="rgba(255,255,255,0.25)" strokeWidth="0.8"/>
-                <path d="M16 38 Q22 42, 30 40 Q38 38, 44 40" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8"/>
+                <path d="M4 8 Q15 12, 30 10 Q45 8, 56 10" stroke="rgba(255,255,255,0.3)" strokeWidth="0.8" />
+                <path d="M8 18 Q18 22, 30 20 Q42 18, 52 20" stroke="rgba(255,255,255,0.3)" strokeWidth="0.8" />
+                <path d="M12 28 Q20 32, 30 30 Q40 28, 48 30" stroke="rgba(255,255,255,0.25)" strokeWidth="0.8" />
+                <path d="M16 38 Q22 42, 30 40 Q38 38, 44 40" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8" />
               </svg>
             </div>
           </div>
@@ -442,7 +441,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
         <div className="fh-floor">
           {/* Hardwood planks */}
           <div className="fh-hardwood" />
-          
+
           {/* Official court lines */}
           <div className="fh-floor-lines">
             <div className="fh-sideline fh-sideline--left" />
@@ -521,8 +520,8 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
             style={{
               "--startX": `${PLAYER_POS[shooter].x}%`,
               "--startY": `${PLAYER_POS[shooter].y}%`,
-              "--endX":   `${rimPos.x}%`,
-              "--endY":   `${rimPos.y + 8}%`,
+              "--endX": `${rimPos.x}%`,
+              "--endY": `${rimPos.y + 8}%`,
             }}
           />
         )}
@@ -569,7 +568,7 @@ export default function FusionHoops({ onClose, onRunningChange } = {}) {
             border: "2px solid #a855f7", borderRadius: 12, padding: "28px 40px",
             textAlign: "center", animation: "fhPopIn 0.3s ease-out"
           }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}><ArrowUpOutlined style={{color: '#00f5ff'}} /></div>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>⬆️</div>
             <div style={{ fontSize: 24, fontWeight: 900, color: "#a855f7", marginBottom: 4 }}>
               LEVEL UP!
             </div>

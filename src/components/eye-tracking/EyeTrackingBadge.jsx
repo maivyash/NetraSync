@@ -4,15 +4,13 @@
  * Props:
  *   status – "idle" | "connecting" | "active" | "error"
  */
-import { EyeOutlined, PauseCircleOutlined, WarningOutlined } from "@ant-design/icons";
-
 export default function EyeTrackingBadge({ status }) {
   const config = {
     idle:       { text: "EYE CURSOR OFF",      color: "#64748b", bg: "rgba(100,116,139,0.15)", pulse: false },
     connecting: { text: "CALIBRATING…",        color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  pulse: true  },
-    active:     { text: <><EyeOutlined /> FACE CONTROL ON</>,   color: "#00ff88", bg: "rgba(0,255,136,0.12)",   pulse: true  },
-    paused:     { text: <><PauseCircleOutlined /> FACE LOST</>,          color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  pulse: true  },
-    error:      { text: <><WarningOutlined /> CONNECTION ERROR</>,   color: "#ef4444", bg: "rgba(239,68,68,0.15)",   pulse: false },
+    active:     { text: "👁 FACE CONTROL ON",   color: "#00ff88", bg: "rgba(0,255,136,0.12)",   pulse: true  },
+    paused:     { text: "⏸ FACE LOST",          color: "#f59e0b", bg: "rgba(245,158,11,0.15)",  pulse: true  },
+    error:      { text: "⚠ CONNECTION ERROR",   color: "#ef4444", bg: "rgba(239,68,68,0.15)",   pulse: false },
   };
   const c = config[status] || config.idle;
 

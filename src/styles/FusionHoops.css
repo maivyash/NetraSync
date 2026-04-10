@@ -126,12 +126,6 @@
   border-radius: 28px;
   padding: clamp(22px, 4vw, 48px) clamp(18px, 5vw, 56px);
   width: min(92vw, 540px);
-  animation: fhEndPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.1) forwards;
-}
-
-@keyframes fhEndPop {
-  0% { transform: scale(0.5); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
 }
 
 .fh-end-icon { font-size: 60px; margin-bottom: 8px; }

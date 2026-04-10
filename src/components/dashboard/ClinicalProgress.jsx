@@ -3,7 +3,6 @@
  */
 import { Progress } from "antd";
 import { clinicalItems } from "../../data/dashboardData";
-import { ExperimentOutlined } from "@ant-design/icons";
 
 export default function ClinicalProgress() {
   return (
@@ -15,7 +14,7 @@ export default function ClinicalProgress() {
         <h3 style={{
           fontFamily: "var(--font-heading)", color: "#00f5ff", fontSize: "0.9rem",
           letterSpacing: 1
-        }}><ExperimentOutlined /> CLINICAL PROGRESS OVERVIEW</h3>
+        }}>🧬 CLINICAL PROGRESS OVERVIEW</h3>
         <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>Last updated: Today</span>
       </div>
 

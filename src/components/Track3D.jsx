@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { CompassOutlined } from "@ant-design/icons";
+import { useEffect, useRef } from "react";
 import * as THREE from "three"; // Force re-import after install
 import nissanImg from "../assets/nissancar.png";
 
@@ -240,7 +239,7 @@ function mkFinishLine(scene, finishZ) {
   lx.shadowBlur = 50; lx.shadowColor = "#00ff88";
   lx.fillStyle = "#00ff88"; lx.font = "bold 130px 'Arial Black', monospace";
   lx.textAlign = "center"; lx.textBaseline = "middle";
-  lx.fillText("FINISH!", 512, 98);
+  lx.fillText("🏁 FINISH!", 512, 98);
   lx.shadowBlur = 20; lx.shadowColor = "#fff";
   lx.fillStyle = "rgba(255,255,255,0.8)"; lx.font = "bold 28px monospace";
   lx.fillText("• RACE ENDS HERE •", 512, 168);
@@ -855,7 +854,7 @@ export default function Track3D({
             display: "flex", alignItems: "center", justifyContent: "center",
             flexDirection: "column", gap: 2,
           }}>
-            <div style={{ fontSize: 22 }}><CompassOutlined /></div>
+            <div style={{ fontSize: 22 }}>🧭</div>
             <div style={{ fontSize: "0.45rem", color: "rgba(0,245,255,0.8)", letterSpacing: 1.5, fontFamily: "monospace" }}>MINI MAP</div>
           </div>
         </div>
