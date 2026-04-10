@@ -8,12 +8,12 @@ const ROAD_W = 12, TRACK_LEN = 400, CAM_H = 3.8, CAM_B = 8, FOV = 68;
 const MODE_TURNS = {
   beginner: [],
   intermediate: [
-    { at: 0.30, dir: 1,  dur: 0.15 },   // right turn at 30%
+    { at: 0.30, dir: 1, dur: 0.15 },   // right turn at 30%
     { at: 0.65, dir: -1, dur: 0.15 },   // left turn at 65%
   ],
   advanced: [
     { at: 0.22, dir: -1, dur: 0.13 },   // left
-    { at: 0.50, dir: 1,  dur: 0.13 },   // right
+    { at: 0.50, dir: 1, dur: 0.13 },   // right
     { at: 0.76, dir: -1, dur: 0.13 },   // left
   ],
 };
