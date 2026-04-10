@@ -1,24 +1,24 @@
 """
 Face Cursor Server — WebSocket-controlled face-based mouse cursor
-==================================================================
-Uses MediaPipe FaceLandmarker (same model as eynoix_server.py) to track
-the user's face/iris and move the OS mouse cursor via pyautogui.
+=================================================================
+Tracks the user's nose position (+ optional head-pose blend) and
+moves the OS mouse cursor with minimal jitter and latency.
 
-The frontend sends JSON commands over WebSocket (port 8767):
-  {"action": "start"}   — begin face tracking & cursor control
-  {"action": "stop"}    — stop tracking & release camera
-  {"action": "ping"}    — health check
+One Euro Filter is used instead of a moving-median:
+  • At low speed  → heavy smoothing (kills jitter)
+  • At high speed → light smoothing (small latency)
 
-This server is SEPARATE from eynoix_server.py:
-  • eynoix_server.py  → alignment / misalignment analysis  (port 8765)
-  • face_cursor.py    → OS cursor control for games         (port 8767)
+WebSocket commands (port 8767):
+  {"action": "start"}  — begin tracking
+  {"action": "stop"}   — stop tracking & release camera
+  {"action": "ping"}   — health-check → pong
 
 RUN:
   python face_cursor.py
   python face_cursor.py --camera 0 --ws-port 8767
 """
 
-import argparse, asyncio, json, os, sys, threading, time, math
+import argparse, asyncio, json, math, os, sys, threading, time
 from collections import deque
 from typing import Optional
 
@@ -29,12 +29,13 @@ import mediapipe as mp
 try:
     import pyautogui
     pyautogui.FAILSAFE = False
+    pyautogui.PAUSE = 0          # remove built-in 0.1s delay
 except ImportError:
-    print("[FACE-CURSOR] pyautogui not found, installing…")
     import subprocess
     subprocess.check_call([sys.executable, "-m", "pip", "install", "pyautogui"])
     import pyautogui
     pyautogui.FAILSAFE = False
+    pyautogui.PAUSE = 0
 
 try:
     import websockets
@@ -44,7 +45,7 @@ except ImportError:
     import websockets
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Model path (same model as eynoix_server)
+# Model
 # ─────────────────────────────────────────────────────────────────────────────
 MODEL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "face_landmarker.task")
 MODEL_URL  = ("https://storage.googleapis.com/mediapipe-models/"
@@ -54,43 +55,89 @@ def _ensure_model():
     if not os.path.exists(MODEL_FILE):
         import urllib.request
         print(f"[FACE-CURSOR] Downloading model → {MODEL_FILE}")
-        def _p(b, bs, tot):
+        def _prog(b, bs, tot):
             pct = min(b * bs / tot * 100, 100) if tot > 0 else 0
             sys.stdout.write(f"\r  [{'#'*int(pct/2)}{'-'*(50-int(pct/2))}] {pct:.1f}%")
             sys.stdout.flush()
-        urllib.request.urlretrieve(MODEL_URL, MODEL_FILE, reporthook=_p)
+        urllib.request.urlretrieve(MODEL_URL, MODEL_FILE, reporthook=_prog)
         print("\n[FACE-CURSOR] Model ready.")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Landmark constants
+# Landmark indices
 # ─────────────────────────────────────────────────────────────────────────────
-NOSE_TIP = 1
-FOREHEAD = 10
-CHIN = 152
-LEFT_CHEEK = 234
+NOSE_TIP    = 1
+FOREHEAD    = 10
+CHIN        = 152
+LEFT_CHEEK  = 234
 RIGHT_CHEEK = 454
 
-# Right eye (user's right = camera left due to mirror)
-RIGHT_EYE_TOP = 159
-RIGHT_EYE_BOTTOM = 145
-# Left eye
-LEFT_EYE_TOP = 386
-LEFT_EYE_BOTTOM = 374
-
-# Iris indices  
-RIGHT_IRIS_CENTER = 468
-LEFT_IRIS_CENTER = 473
+# EAR (eye-open gating)
+R_EYE_TOP, R_EYE_BOT, R_EYE_IN, R_EYE_OUT = 159, 145, 133, 33
+L_EYE_TOP, L_EYE_BOT, L_EYE_IN, L_EYE_OUT = 386, 374, 362, 263
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Tracking constants
+# Tuning constants
 # ─────────────────────────────────────────────────────────────────────────────
-EAR_OPEN_THRESHOLD = 0.18
-BLINK_GRACE_FRAMES = 3
-SMOOTH_WINDOW = 10
-DEAD_ZONE = 0.008
-HEAD_POSE_WEIGHT = 0.35
+EAR_THRESHOLD    = 0.18   # below → eyes closed
+BLINK_GRACE      = 3      # frames of grace before freezing cursor
+DEAD_ZONE        = 0.012  # normalized screen fraction — kills micro-tremor
+HEAD_POSE_WEIGHT = 0.30   # blend head-yaw/pitch into position signal
+CALIB_FRAMES     = 45     # frames to collect before cursor activates
+
+# One Euro Filter defaults (tweak beta to trade latency vs smoothness)
+OEF_MIN_CUTOFF  = 1.0    # Hz — lower = more smoothing at rest
+OEF_BETA        = 0.08   # speed coefficient — higher = less latency on fast moves
+OEF_D_CUTOFF    = 1.0    # derivative cutoff
+
+# ─────────────────────────────────────────────────────────────────────────────
+# One Euro Filter
+# ─────────────────────────────────────────────────────────────────────────────
+class OneEuroFilter:
+    """
+    Adaptive low-pass filter that reduces jitter without adding
+    significant lag during fast movements. (Géry et al. 2012)
+    """
+
+    def __init__(self, min_cutoff=OEF_MIN_CUTOFF, beta=OEF_BETA, d_cutoff=OEF_D_CUTOFF):
+        self.min_cutoff = min_cutoff
+        self.beta       = beta
+        self.d_cutoff   = d_cutoff
+        self._x         = None
+        self._dx        = 0.0
+        self._t         = None
+
+    def _alpha(self, cutoff, dt):
+        tau = 1.0 / (2 * math.pi * cutoff)
+        return 1.0 / (1.0 + tau / dt)
+
+    def __call__(self, x, t=None):
+        if t is None:
+            t = time.monotonic()
+        if self._t is None:
+            self._x, self._dx, self._t = x, 0.0, t
+            return x
+
+        dt = max(t - self._t, 1e-6)
+        self._t = t
+
+        # Derivative
+        dx_raw     = (x - self._x) / dt
+        a_d        = self._alpha(self.d_cutoff, dt)
+        self._dx   = a_d * dx_raw + (1 - a_d) * self._dx
+
+        # Adaptive cutoff
+        cutoff     = self.min_cutoff + self.beta * abs(self._dx)
+        a          = self._alpha(cutoff, dt)
+        self._x    = a * x + (1 - a) * self._x
+        return self._x
+
+    def reset(self):
+        self._x, self._dx, self._t = None, 0.0, None
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────────────────
 def _screen_size():
     try:
         import ctypes
@@ -100,129 +147,125 @@ def _screen_size():
         return pyautogui.size()
 
 
-def estimate_head_pose(landmarks, w, h):
-    """Compute yaw and pitch from face landmarks."""
-    nose = np.array([landmarks[NOSE_TIP].x * w, landmarks[NOSE_TIP].y * h])
-    fore = np.array([landmarks[FOREHEAD].x * w, landmarks[FOREHEAD].y * h])
-    chin = np.array([landmarks[CHIN].x * w, landmarks[CHIN].y * h])
-    lc   = np.array([landmarks[LEFT_CHEEK].x * w, landmarks[LEFT_CHEEK].y * h])
-    rc   = np.array([landmarks[RIGHT_CHEEK].x * w, landmarks[RIGHT_CHEEK].y * h])
-    face_width    = np.linalg.norm(lc - rc) + 1e-6
-    face_center_x = (lc[0] + rc[0]) / 2.0
-    nose_offset   = (nose[0] - face_center_x) / face_width
-    yaw_deg       = nose_offset * 90.0
-    fore_dist     = np.linalg.norm(fore - nose)
-    chin_dist     = np.linalg.norm(chin - nose)
-    pitch_ratio   = (fore_dist - chin_dist) / (fore_dist + chin_dist + 1e-6)
-    pitch_deg     = pitch_ratio * 60.0
-    return yaw_deg, pitch_deg
+def _ear(lms, top, bot, inn, out, w, h):
+    """Eye Aspect Ratio — simple blink detector."""
+    p = lambda i: np.array([lms[i].x * w, lms[i].y * h])
+    vert  = np.linalg.norm(p(top) - p(bot))
+    horiz = np.linalg.norm(p(inn) - p(out)) + 1e-6
+    return vert / horiz
 
 
+def _head_pose(lms, w, h):
+    """Return normalized yaw (0-1) and pitch (0-1) from face landmarks."""
+    p = lambda i: np.array([lms[i].x * w, lms[i].y * h])
+    nose, fore, chin = p(NOSE_TIP), p(FOREHEAD), p(CHIN)
+    lc, rc = p(LEFT_CHEEK), p(RIGHT_CHEEK)
+
+    face_w      = np.linalg.norm(lc - rc) + 1e-6
+    yaw_deg     = ((nose[0] - (lc[0] + rc[0]) / 2) / face_w) * 90.0
+    pitch_ratio = (np.linalg.norm(fore - nose) - np.linalg.norm(chin - nose)) / \
+                  (np.linalg.norm(fore - nose) + np.linalg.norm(chin - nose) + 1e-6)
+    pitch_deg   = pitch_ratio * 60.0
+
+    yaw_n   = np.clip(yaw_deg   / 35.0, -1.0, 1.0) * 0.5 + 0.5
+    pitch_n = np.clip(pitch_deg / 25.0, -1.0, 1.0) * 0.5 + 0.5
+    return float(yaw_n), float(pitch_n)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Engine
+# ─────────────────────────────────────────────────────────────────────────────
 class FaceCursorEngine:
     """
-    Face-based cursor engine.
-    Uses nose position + head yaw/pitch to drive the OS cursor.
-    EAR gating ensures cursor only moves when eyes are open.
+    Face-tracking engine that drives the OS cursor.
+    Start/stop are thread-safe and callable from any thread.
     """
 
     def __init__(self, cam_idx=0, width=640, height=480):
         _ensure_model()
-        self.cam_idx = cam_idx
-        self.cam_width = width
-        self.cam_height = height
-        self.screen_w, self.screen_h = _screen_size()
+        self.cam_idx   = cam_idx
+        self.cam_w     = width
+        self.cam_h     = height
+        self.scr_w, self.scr_h = _screen_size()
 
-        # MediaPipe FaceLandmarker
-        BaseOpts = mp.tasks.BaseOptions
-        FLM      = mp.tasks.vision.FaceLandmarker
-        FLMOpts  = mp.tasks.vision.FaceLandmarkerOptions
-        RunMode  = mp.tasks.vision.RunningMode
+        # MediaPipe — IMAGE mode: simplest, no timestamp bookkeeping needed
+        FLM     = mp.tasks.vision.FaceLandmarker
+        FLMOpts = mp.tasks.vision.FaceLandmarkerOptions
         opts = FLMOpts(
-            base_options=BaseOpts(model_asset_path=MODEL_FILE),
-            running_mode=RunMode.IMAGE,
+            base_options=mp.tasks.BaseOptions(model_asset_path=MODEL_FILE),
+            running_mode=mp.tasks.vision.RunningMode.IMAGE,
             num_faces=1,
-            min_face_detection_confidence=0.5,
-            min_face_presence_confidence=0.5,
+            min_face_detection_confidence=0.6,
+            min_face_presence_confidence=0.6,
             min_tracking_confidence=0.5,
             output_face_blendshapes=False,
             output_facial_transformation_matrixes=False,
         )
         self.landmarker = FLM.create_from_options(opts)
 
-        # Camera state
-        self.cap = None
-        self._tracking = False
-        self._thread = None
-        self._lock = threading.Lock()
+        self.cap      = None
+        self._running = False
+        self._thread  = None
+        self._lock    = threading.Lock()
 
-        # Smoothing buffers
-        self._buf_h = deque(maxlen=SMOOTH_WINDOW)
-        self._buf_v = deque(maxlen=SMOOTH_WINDOW)
+        # One Euro Filters — one per axis
+        self._oef_h = OneEuroFilter()
+        self._oef_v = OneEuroFilter()
 
-        # Calibration
-        self._calib_buf_h = deque(maxlen=60)
-        self._calib_buf_v = deque(maxlen=60)
+        # Auto-calibration (find the resting head center)
+        self._calib_h: deque = deque(maxlen=CALIB_FRAMES)
+        self._calib_v: deque = deque(maxlen=CALIB_FRAMES)
         self._center_h = 0.5
         self._center_v = 0.5
         self._calibrated = False
 
-        # Blink gating
-        self._closed_streak = 0
-        self._last_h = 0.5
-        self._last_v = 0.5
-        self._active = False
+        # Cursor state
+        self._last_sx = -1      # last screen X
+        self._last_sy = -1      # last screen Y
+        self._blink_streak = 0
 
-        # Status broadcast
-        self._status = "stopped"  # stopped | calibrating | tracking | paused
-        self._subscribers = set()
-        self._event_loop = None
+        # WebSocket broadcast
+        self._status      = "stopped"
+        self._subscribers: set = set()
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+    # ── Camera ──────────────────────────────────────────────────────────────
 
     def _open_camera(self):
-        if self.cap is not None:
-            return
         print(f"  [CAM] Opening camera #{self.cam_idx}…")
-        self.cap = cv2.VideoCapture(self.cam_idx, cv2.CAP_DSHOW)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.cam_width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.cam_height)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        self.cap.set(cv2.CAP_PROP_FPS, 60)
+        cap = cv2.VideoCapture(self.cam_idx, cv2.CAP_DSHOW)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH,  self.cam_w)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.cam_h)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        cap.set(cv2.CAP_PROP_FPS, 30)
         time.sleep(0.3)
+        self.cap = cap
         print(f"  [CAM] Camera #{self.cam_idx} ready.")
 
     def _close_camera(self):
-        if self.cap is not None:
-            print(f"  [CAM] Releasing camera #{self.cam_idx}.")
+        if self.cap:
             self.cap.release()
             self.cap = None
+            print(f"  [CAM] Camera #{self.cam_idx} released.")
 
-    def _reset_state(self):
-        self._buf_h.clear()
-        self._buf_v.clear()
-        self._calib_buf_h.clear()
-        self._calib_buf_v.clear()
-        self._calibrated = False
-        self._closed_streak = 0
-        self._last_h = 0.5
-        self._last_v = 0.5
-        self._active = False
+    # ── Control ──────────────────────────────────────────────────────────────
 
     def start(self):
-        """Start face tracking and cursor control."""
         with self._lock:
-            if self._tracking:
+            if self._running:
                 return {"ok": True, "status": "already_tracking"}
-            self._tracking = True
-            self._reset_state()
+            self._running = True
+
+        self._reset()
         self._open_camera()
-        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread = threading.Thread(target=self._loop_fn, daemon=True)
         self._thread.start()
         self._set_status("calibrating")
         return {"ok": True, "status": "started"}
 
     def stop(self):
-        """Stop face tracking and release camera."""
         with self._lock:
-            self._tracking = False
+            self._running = False
         if self._thread:
             self._thread.join(timeout=2)
             self._thread = None
@@ -230,15 +273,37 @@ class FaceCursorEngine:
         self._set_status("stopped")
         return {"ok": True, "status": "stopped"}
 
+    def _reset(self):
+        self._oef_h.reset()
+        self._oef_v.reset()
+        self._calib_h.clear()
+        self._calib_v.clear()
+        self._calibrated = False
+        self._last_sx = self._last_sy = -1
+        self._blink_streak = 0
+
+    def cleanup(self):
+        self.stop()
+        self.landmarker.close()
+
+    # ── Status broadcast ─────────────────────────────────────────────────────
+
+    def subscribe(self, q, loop):
+        with self._lock:
+            self._subscribers.add(q)
+            self._loop = loop
+
+    def unsubscribe(self, q):
+        with self._lock:
+            self._subscribers.discard(q)
+
     def _set_status(self, status):
         self._status = status
-        payload = {"type": "status", "status": status, "timestamp": time.time()}
-        self._broadcast(payload)
+        self._broadcast({"type": "status", "status": status, "ts": time.time()})
 
     def _broadcast(self, payload):
         with self._lock:
-            subs = list(self._subscribers)
-            loop = self._event_loop
+            subs, loop = list(self._subscribers), self._loop
         if loop and loop.is_running():
             for q in subs:
                 try:
@@ -246,199 +311,159 @@ class FaceCursorEngine:
                 except Exception:
                     pass
 
-    def subscribe(self, q, loop):
-        with self._lock:
-            self._subscribers.add(q)
-            self._event_loop = loop
+    # ── Main loop ────────────────────────────────────────────────────────────
 
-    def unsubscribe(self, q):
-        with self._lock:
-            self._subscribers.discard(q)
+    def _loop_fn(self):
+        """Background thread: grab frame → detect → filter → move cursor."""
+        RANGE_H = 0.18   # expected nose travel ±range from center
+        RANGE_V = 0.14
 
-    def _compute_ear(self, landmarks, top_idx, bottom_idx, inner_idx, outer_idx, w, h):
-        """Compute Eye Aspect Ratio."""
-        top = np.array([landmarks[top_idx].x * w, landmarks[top_idx].y * h])
-        bot = np.array([landmarks[bottom_idx].x * w, landmarks[bottom_idx].y * h])
-        inn = np.array([landmarks[inner_idx].x * w, landmarks[inner_idx].y * h])
-        out = np.array([landmarks[outer_idx].x * w, landmarks[outer_idx].y * h])
-        vert = np.linalg.norm(top - bot)
-        horiz = np.linalg.norm(inn - out) + 1e-6
-        return vert / horiz
-
-    def _loop(self):
-        """Main tracking loop — runs on a background thread."""
         while True:
             with self._lock:
-                if not self._tracking:
+                if not self._running:
                     break
-            if self.cap is None:
-                time.sleep(0.01)
-                continue
 
-            ret, frame = self.cap.read()
-            if not ret or frame is None:
+            # ── Grab latest frame (discard buffered) ──
+            self.cap.grab()
+            ok, frame = self.cap.retrieve()
+            if not ok or frame is None:
                 time.sleep(0.005)
                 continue
 
             frame = cv2.flip(frame, 1)
-            h, w = frame.shape[:2]
+            h, w  = frame.shape[:2]
 
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # ── MediaPipe inference ──
+            rgb    = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-
             try:
                 result = self.landmarker.detect(mp_img)
             except Exception:
                 continue
 
             if not result.face_landmarks:
-                # No face → pause cursor
-                if self._status != "paused" and self._calibrated:
+                if self._calibrated and self._status != "paused":
                     self._set_status("paused")
                 continue
 
             lms = result.face_landmarks[0]
 
-            # ── Eye-open gating ──
-            left_ear = self._compute_ear(lms, 386, 374, 362, 263, w, h)
-            right_ear = self._compute_ear(lms, 159, 145, 133, 33, w, h)
-            avg_ear = (left_ear + right_ear) / 2.0
-            eyes_open = avg_ear > EAR_OPEN_THRESHOLD
+            # ── EAR blink gate ──
+            left_ear  = _ear(lms, L_EYE_TOP, L_EYE_BOT, L_EYE_IN, L_EYE_OUT, w, h)
+            right_ear = _ear(lms, R_EYE_TOP, R_EYE_BOT, R_EYE_IN, R_EYE_OUT, w, h)
+            eyes_open = (left_ear + right_ear) / 2.0 > EAR_THRESHOLD
 
             if not eyes_open:
-                self._closed_streak += 1
+                self._blink_streak += 1
+                if self._blink_streak > BLINK_GRACE:
+                    continue          # cursor frozen; skip move
             else:
-                self._closed_streak = 0
+                self._blink_streak = 0
 
-            if self._closed_streak > BLINK_GRACE_FRAMES:
-                # Eyes closed → freeze cursor
-                continue
-
-            # ── Face position: nose tip normalized ──
-            nose = lms[NOSE_TIP]
+            # ── Raw signal: nose position + head pose blend ──
+            nose  = lms[NOSE_TIP]
             raw_h = float(nose.x)
             raw_v = float(nose.y)
 
-            # ── Head pose ──
-            head_yaw, head_pitch = estimate_head_pose(lms, w, h)
-            yaw_norm = np.clip(head_yaw / 35.0, -1.0, 1.0) * 0.5 + 0.5
-            pitch_norm = np.clip(head_pitch / 25.0, -1.0, 1.0) * 0.5 + 0.5
+            yaw_n, pitch_n = _head_pose(lms, w, h)
+            pw      = HEAD_POSE_WEIGHT
+            signal_h = raw_h * (1 - pw) + yaw_n   * pw
+            signal_v = raw_v * (1 - pw) + pitch_n * pw
 
-            # Blend face position + head pose
-            pw = HEAD_POSE_WEIGHT
-            blended_h = raw_h * (1 - pw) + yaw_norm * pw
-            blended_v = raw_v * (1 - pw) + pitch_norm * pw
-
-            # ── Auto-calibration ──
+            # ── Auto-calibration: collect center at rest ──
             if not self._calibrated:
-                self._calib_buf_h.append(blended_h)
-                self._calib_buf_v.append(blended_v)
-                if len(self._calib_buf_h) >= 40:
-                    self._center_h = float(np.median(self._calib_buf_h))
-                    self._center_v = float(np.median(self._calib_buf_v))
+                self._calib_h.append(signal_h)
+                self._calib_v.append(signal_v)
+                if len(self._calib_h) >= CALIB_FRAMES:
+                    self._center_h = float(np.median(self._calib_h))
+                    self._center_v = float(np.median(self._calib_v))
                     self._calibrated = True
                     self._set_status("tracking")
-                    print(f"  [FACE-CURSOR] Calibrated center: h={self._center_h:.3f} v={self._center_v:.3f}")
+                    print(f"  [CALIBRATED] center h={self._center_h:.3f} v={self._center_v:.3f}")
                 continue
 
-            # ── Map relative to calibrated center → 0-1 ──
-            RANGE_H = 0.18
-            RANGE_V = 0.14
-            norm_h = 0.5 + (blended_h - self._center_h) / (2 * RANGE_H)
-            norm_v = 0.5 + (blended_v - self._center_v) / (2 * RANGE_V)
-            norm_h = float(np.clip(norm_h, 0.0, 1.0))
-            norm_v = float(np.clip(norm_v, 0.0, 1.0))
+            # ── Map relative offset to 0-1 screen space ──
+            norm_h = np.clip(0.5 + (signal_h - self._center_h) / (2 * RANGE_H), 0.0, 1.0)
+            norm_v = np.clip(0.5 + (signal_v - self._center_v) / (2 * RANGE_V), 0.0, 1.0)
 
-            # ── Dead-zone ──
-            if self._active:
-                if abs(norm_h - self._last_h) < DEAD_ZONE:
-                    norm_h = self._last_h
-                if abs(norm_v - self._last_v) < DEAD_ZONE:
-                    norm_v = self._last_v
+            # ── One Euro Filter (removes jitter, preserves speed) ──
+            t      = time.monotonic()
+            filt_h = self._oef_h(norm_h, t)
+            filt_v = self._oef_v(norm_v, t)
 
-            # ── Smooth with moving-median ──
-            self._buf_h.append(norm_h)
-            self._buf_v.append(norm_v)
-            smooth_h = float(np.median(self._buf_h))
-            smooth_v = float(np.median(self._buf_v))
+            # ── Dead-zone: suppress sub-pixel tremor ──
+            scr_h = float(filt_h) * self.scr_w
+            scr_v = float(filt_v) * self.scr_h
 
-            self._last_h = smooth_h
-            self._last_v = smooth_v
-            self._active = True
+            if self._last_sx >= 0:
+                if abs(scr_h - self._last_sx) < DEAD_ZONE * self.scr_w and \
+                   abs(scr_v - self._last_sy) < DEAD_ZONE * self.scr_h:
+                    continue          # within dead-zone → don't move
 
-            # ── Move OS cursor ──
-            margin = 10
-            target_x = int(np.clip(smooth_h * self.screen_w, margin, self.screen_w - margin))
-            target_y = int(np.clip(smooth_v * self.screen_h, margin, self.screen_h - margin))
+            target_x = int(np.clip(scr_h, 10, self.scr_w - 10))
+            target_y = int(np.clip(scr_v, 10, self.scr_h - 10))
+
+            self._last_sx = target_x
+            self._last_sy = target_y
+
             pyautogui.moveTo(target_x, target_y, _pause=False)
 
             if self._status != "tracking":
                 self._set_status("tracking")
 
-    def cleanup(self):
-        self.stop()
-        self.landmarker.close()
-
 
 # ─────────────────────────────────────────────────────────────────────────────
-# WEBSOCKET SERVER
+# WebSocket server
 # ─────────────────────────────────────────────────────────────────────────────
 _engine: Optional[FaceCursorEngine] = None
 
 
 async def _ws_handler(websocket):
-    q = asyncio.Queue(maxsize=8)
+    q    = asyncio.Queue(maxsize=8)
     loop = asyncio.get_event_loop()
     _engine.subscribe(q, loop)
-    print(f"  [WS] + Client connected: {websocket.remote_address}")
+    print(f"  [WS] + {websocket.remote_address}")
 
-    # Send current status immediately
-    await websocket.send(json.dumps({
-        "type": "status",
-        "status": _engine._status,
-        "timestamp": time.time(),
-    }))
+    # Send current status on connect
+    await websocket.send(json.dumps({"type": "status", "status": _engine._status, "ts": time.time()}))
 
-    async def _send():
+    async def _sender():
         while True:
-            payload = await q.get()
+            msg = await q.get()
             try:
-                await websocket.send(json.dumps(payload))
+                await websocket.send(json.dumps(msg))
             except Exception:
                 break
 
-    async def _recv():
+    async def _receiver():
         async for raw in websocket:
             try:
-                cmd = json.loads(raw)
+                cmd    = json.loads(raw)
                 action = cmd.get("action", "")
-
                 if action == "start":
                     result = _engine.start()
                 elif action == "stop":
                     result = _engine.stop()
                 elif action == "ping":
-                    result = {"type": "pong", "status": _engine._status, "timestamp": time.time()}
+                    result = {"type": "pong", "status": _engine._status, "ts": time.time()}
                 else:
-                    result = {"error": f"Unknown action: {action}"}
-
+                    result = {"error": f"unknown action: {action}"}
                 await websocket.send(json.dumps(result))
             except Exception as e:
                 await websocket.send(json.dumps({"error": str(e)}))
 
     try:
-        await asyncio.gather(_send(), _recv())
+        await asyncio.gather(_sender(), _receiver())
     except Exception:
         pass
     finally:
         _engine.unsubscribe(q)
-        print(f"  [WS] - Client disconnected: {websocket.remote_address}")
+        print(f"  [WS] - {websocket.remote_address}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ENTRY POINT
+# Entry point
 # ─────────────────────────────────────────────────────────────────────────────
-
 def main():
     ap = argparse.ArgumentParser(description="Face Cursor WebSocket Server")
     ap.add_argument("--ws-port", type=int, default=8767)
@@ -449,30 +474,26 @@ def main():
 
     global _engine
     print("=" * 56)
-    print("  FACE CURSOR Server")
-    print(f"  WebSocket  →  ws://localhost:{args.ws_port}")
-    print(f"  Camera #{args.camera}")
-    print("  Camera opens ONLY when 'start' command is received.")
-    print("  Ctrl+C to stop")
+    print("  FACE CURSOR SERVER")
+    print(f"  WebSocket → ws://localhost:{args.ws_port}")
+    print(f"  Camera    → #{args.camera}")
+    print("  Camera opens when 'start' is received.")
+    print("  Ctrl+C to quit")
     print("=" * 56)
 
-    _engine = FaceCursorEngine(
-        cam_idx=args.camera,
-        width=args.width,
-        height=args.height,
-    )
+    _engine = FaceCursorEngine(cam_idx=args.camera, width=args.width, height=args.height)
 
-    async def _ws():
+    async def _serve():
         async with websockets.serve(_ws_handler, "0.0.0.0", args.ws_port):
-            print(f"\n  WS ready on :{args.ws_port}")
-            print(f"  Waiting for client to send 'start' command…\n")
+            print(f"\n  Listening on :{args.ws_port}  (waiting for 'start')…\n")
             await asyncio.Future()
 
     try:
-        asyncio.run(_ws())
+        asyncio.run(_serve())
     except KeyboardInterrupt:
         print("\n  Shutting down…")
         _engine.cleanup()
+
 
 if __name__ == "__main__":
     main()
