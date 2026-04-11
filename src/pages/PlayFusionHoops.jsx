@@ -1,11 +1,6 @@
 /**
- * PlayFusionHoops — Full-screen game route for /play/fusion-hoops.
- *
- * Eye-tracking architecture (pure JS, no Python server):
- *   • useFaceCursor runs MediaPipe WASM in-browser
- *   • gazePosRef holds viewport-pixel gaze position
- *   • FusionHoops reads gazePosRef → determines if gaze is inside rim zone
- *   • Touch/click for shooting still works independently
+ * PlayFusionHoops — Full-screen game route /play/fusion-hoops
+ * Landscape-first layout — face cursor active while on this page.
  */
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -19,27 +14,26 @@ export default function PlayFusionHoops() {
 
   useEffect(() => {
     setActive(true);
-    return () => setActive(false);
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    return () => {
+      setActive(false);
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    };
   }, [setActive]);
 
   const handleClose = () => navigate("/dashboard", { replace: true });
 
   return (
-    <div style={{
-      position: "fixed",
-      inset: 0,
-      background: "rgba(5, 8, 16, 0.95)",
-      backdropFilter: "blur(10px)",
-      zIndex: 2000,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    }}>
+    <div
+      className="game-fullscreen"
+      style={{ background: "rgba(5,8,16,0.98)", touchAction: "none" }}
+    >
       <EyeTrackingBadge />
-
-      <div style={{ position: "absolute", inset: 0, display: "flex" }}>
-        <FusionHoops onClose={handleClose} gazePosRef={gazePosRef} />
-      </div>
+      <FusionHoops onClose={handleClose} gazePosRef={gazePosRef} />
     </div>
   );
 }

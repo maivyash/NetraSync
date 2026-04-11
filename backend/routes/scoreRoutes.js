@@ -308,7 +308,33 @@ router.get("/scores/me/game/:gameName", verifyToken, async (req, res) => {
     }
 });
 
+// ─── GET /api/scores/me/today — Today's best score + total points ─────────────
+router.get("/scores/me/today", verifyToken, async (req, res) => {
+    try {
+        const [[todayRow]] = await db.execute(
+            `SELECT
+                COALESCE(MAX(points), 0)   AS best_score,
+                COALESCE(SUM(points), 0)   AS total_points,
+                COUNT(*)                    AS sessions_today
+             FROM game_scores
+             WHERE user_id = ? AND DATE(played_at) = CURDATE()`,
+            [req.user.id]
+        );
+
+        res.json({
+            success: true,
+            todayBestScore:   Math.round(todayRow.best_score),
+            todayTotalPoints: Math.round(todayRow.total_points),
+            sessionsTodady:   todayRow.sessions_today,
+        });
+    } catch (err) {
+        console.error("Fetch today scores error:", err);
+        res.status(500).json({ success: false, error: "Failed to fetch today's scores" });
+    }
+});
+
 export default router;
+
 
 // ─── POST /api/scores/alignment — Submit an alignment score ─────────────────
 router.post("/scores/alignment", verifyToken, async (req, res) => {

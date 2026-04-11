@@ -21,7 +21,7 @@
 
 .orbdrive-wrapper {
   width: 100%;
-  height: 100%;
+  height: 100dvh;            /* real viewport height including notch */
   display: flex;
   flex-direction: column;
   background: var(--bg-dark);
@@ -225,14 +225,17 @@
   flex: 1;
   display: grid;
   grid-template-columns: 1.15fr 1fr;
+  grid-auto-rows: 1fr;       /* equal row height when stacked on mobile */
   gap: 30px;
   padding: 10px 40px 40px 40px;
   margin-top: 100px;
+  min-height: 0;             /* allow flex child to shrink properly */
 }
 
 /* ── ORB TRACKING PANEL (LEFT) ── */
 .orb-panel {
   position: relative;
+  min-height: 220px;         /* ensures panel has height even when grid is 1-col stacked */
   background: linear-gradient(135deg, rgba(0, 245, 255, 0.05), rgba(168, 85, 247, 0.05)) boundary-box;
   border: 2px solid rgba(0, 245, 255, 0.2);
   border-radius: 16px;
@@ -1213,69 +1216,185 @@
   transform: translateY(-2px);
 }
 
-/* ── RESPONSIVE ── */
+/* ============================================================
+   RESPONSIVE — Mobile & Landscape
+   ============================================================ */
+
+/* ── Tablet Portrait (≤1024px) ── */
 @media (max-width: 1024px) {
   .orbdrive-container {
     grid-template-columns: 1fr;
-    margin-top: 150px;
+    grid-template-rows: 1fr 1fr;
+    margin-top: 140px;
+    height: calc(100dvh - 140px);
+    padding: 10px 20px 20px;
+    gap: 16px;
   }
+  .orb-panel, .track-panel { min-height: 220px; height: 100%; }
+  .track-hud { bottom: 20px; right: 16px; }
+  .od-hud-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 
-  .track-hud {
-    bottom: 160px;
-  }
+/* ── Mobile Portrait (≤768px) ── */
+@media (max-width: 768px) {
+  .orbdrive-title  { font-size: clamp(1rem, 4vw, 1.4rem); }
+  .orbdrive-sub    { font-size: 0.65rem; }
 
   .od-hud-bar {
+    top: 60px;
+    left: 8px; right: 8px;
+    padding: 6px 8px;
+    gap: 6px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-}
-
-@media (max-width: 768px) {
-  .orbdrive-title {
-    font-size: 1.4rem;
-  }
-
-  .od-hud-bar {
-    top: 70px;
-    padding: 12px;
-    gap: 8px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .od-hud-cell {
-    min-width: 0;
-  }
+  .od-hud-big     { font-size: 1.1rem; }
+  .od-hud-num     { font-size: 0.8rem; }
+  .od-hud-lbl     { font-size: 0.55rem; }
 
   .orbdrive-container {
-    padding: 12px;
-    gap: 12px;
+    grid-template-columns: 1fr;   /* stack vertically */
+    grid-template-rows: 1fr 1fr;  /* equal halves */
+    padding: 8px;
+    gap: 8px;
+    margin-top: 110px;
+    /* take remaining height after HUD */
+    height: calc(100dvh - 110px);
   }
 
-  .track-hud {
-    bottom: 140px;
-    right: 12px;
+  /* Both panels must fill their grid row */
+  .orb-panel, .track-panel {
+    min-height: 200px;
+    height: 100%;
   }
 
-  .speedo {
-    width: 100px;
-    height: 100px;
-    border-width: 2px;
-  }
-
-  .speedo-value {
-    font-size: 1.3rem;
-  }
+  .track-hud { bottom: 16px; right: 10px; }
+  .speedo { width: 90px; height: 90px; border-width: 2px; }
+  .speedo-value { font-size: 1.1rem; }
 
   .orbdrive-holdHint {
-    bottom: 16px;
-    width: calc(100% - 36px);
-    font-size: 0.72rem;
-    padding: 10px 14px;
+    bottom: 8px;
+    width: calc(100% - 24px);
+    font-size: 0.68rem;
+    padding: 8px 10px;
   }
+
+  .orbdrive-modeModal { padding: 24px 16px; }
+  .orbdrive-modeGrid  { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .orbdrive-modeName  { font-size: 0.95rem; }
+  .orbdrive-modeDesc  { font-size: 0.75rem; }
+
+  .orbdrive-readyModal { padding: 36px 20px; max-width: 340px; }
+  .orbdrive-readyTitle { font-size: 1.4rem; }
+  .orbdrive-readySub   { font-size: 1rem; }
+
+  .orbdrive-resultCard  { padding: 24px 16px; }
+  .orbdrive-resultTime  { font-size: 2.4rem; }
+  .orbdrive-resultStats { grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .orbdrive-countInner { width: 200px; height: 200px; }
+  .orbdrive-countNum   { font-size: 6rem; }
+  .orbdrive-flag       { font-size: 3rem; }
+
+  .orbdrive-carSelectModal { padding: 20px 14px 16px; }
+  .orbdrive-carGrid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .orbdrive-carImgWrap, .orbdrive-carSelectImg { height: 70px; }
+
+  .orbdrive-close-btn { top: 10px; right: 10px; width: 38px; height: 38px; font-size: 20px; }
 }
 
-/* ============================================================
-   CAR SELECTION SCREEN
-   ============================================================ */
+/* ── Landscape Phone (height ≤ 500px, orientation landscape) ── */
+/* This is where most mobile gaming happens — full two-panel split */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* Title / sub disappear — no room */
+  .orbdrive-title, .orbdrive-sub { display: none; }
+
+  /* HUD becomes a single slim row pinned to safe top */
+  .od-hud-bar {
+    top: calc(4px + var(--sat, 0px));
+    left: 4px; right: 4px;
+    padding: 4px 8px;
+    gap: 4px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border-radius: 8px;
+  }
+  .od-hud-big   { font-size: 0.9rem; }
+  .od-hud-num   { font-size: 0.75rem; }
+  .od-hud-lbl   { font-size: 0.5rem; letter-spacing: 0; }
+  .od-hud-unit  { font-size: 0.5rem; }
+  .od-hud-lockNum { font-size: 0.6rem; min-width: 28px; }
+
+  /* Main container: side-by-side, starts under slim HUD */
+  .orbdrive-container {
+    grid-template-columns: 1fr 1fr !important; /* always show both panels */
+    grid-template-rows: 1fr;                   /* single row fills height */
+    margin-top: 0;
+    padding: 44px 4px 4px 4px;                 /* push content below HUD with padding */
+    gap: 4px;
+    height: 100dvh;                            /* real viewport height */
+  }
+
+  /* Panels must fill the row completely */
+  .orb-panel, .track-panel {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .orb-panel, .track-panel { border-radius: 8px; }
+
+  /* Speedo — tiny */
+  .track-hud  { bottom: 6px; right: 6px; }
+  .speedo     { width: 70px; height: 70px; border-width: 2px; }
+  .speedo-value { font-size: 0.85rem; }
+  .speedo-unit  { font-size: 0.5rem; }
+
+  /* Bottom dashboard hidden — no height for it in landscape */
+  .od-dashboard { display: none; }
+
+  /* Hold hint */
+  .orbdrive-holdHint {
+    bottom: 4px;
+    padding: 4px 10px;
+    font-size: 0.6rem;
+    border-radius: 6px;
+  }
+
+  /* Warning position */
+  .orbdrive-warning { top: 50px; font-size: 0.75rem; padding: 8px 16px; }
+
+  /* Modals — compact */
+  .orbdrive-modeModal   { padding: 16px 12px; max-width: 96vw; }
+  .orbdrive-modeTitle   { font-size: 1.1rem; margin-bottom: 16px; }
+  .orbdrive-modeGrid    { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .orbdrive-modeCard    { padding: 12px 8px; }
+  .orbdrive-modeName    { font-size: 0.8rem; margin-bottom: 6px; }
+  .orbdrive-modeDesc    { font-size: 0.68rem; }
+
+  .orbdrive-readyModal  { padding: 20px 16px; max-width: 360px; }
+  .orbdrive-readyTitle  { font-size: 1.2rem; }
+  .orbdrive-readySub    { font-size: 0.9rem; margin-bottom: 16px; }
+  .orbdrive-readyBtn    { padding: 10px 24px; font-size: 0.85rem; }
+
+  .orbdrive-countInner  { width: 140px; height: 140px; }
+  .orbdrive-countNum    { font-size: 4.5rem; }
+  .orbdrive-flag        { font-size: 2.2rem; }
+
+  .orbdrive-resultCard  { padding: 16px 12px; max-width: 360px; }
+  .orbdrive-resultTop   { font-size: 0.65rem; }
+  .orbdrive-resultTime  { font-size: 2rem; margin-bottom: 12px; }
+  .orbdrive-resultStats { grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
+  .orbdrive-resultStat  { padding: 8px 6px; }
+  .orbdrive-resultValue { font-size: 0.95rem; }
+  .orbdrive-resultLabel { font-size: 0.55rem; }
+  .orbdrive-resultBtn   { padding: 8px 16px; font-size: 0.68rem; }
+
+  .orbdrive-carSelectModal { max-height: 96dvh; padding: 12px 10px; }
+  .orbdrive-carGrid { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .orbdrive-carImgWrap, .orbdrive-carSelectImg { height: 54px; }
+  .orbdrive-carName { font-size: 0.65rem; }
+
+  .orbdrive-close-btn { top: 6px; right: 6px; width: 32px; height: 32px; font-size: 16px; }
+}
+
 
 .orbdrive-carSelectModal {
   background: linear-gradient(135deg, rgba(5, 8, 20, 0.98), rgba(10, 15, 35, 0.98));

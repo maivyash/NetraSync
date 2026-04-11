@@ -1300,26 +1300,117 @@
 }
 
 /* ============================================
-   RESPONSIVE
+   RESPONSIVE — Mobile & Landscape
    ============================================ */
+
+/* ── Mobile Portrait (≤700px) ── */
 @media (max-width: 700px) {
-  .fh-hud { padding: 0 10px; height: 46px; }
-  .fh-hud-name { font-size: 13px; }
-  .fh-hud-center { gap: 20px; }
+  .fh-hud          { padding: 0 10px; height: 46px; }
+  .fh-hud-name     { font-size: 13px; }
+  .fh-hud-center   { gap: 20px; }
   .fh-hud-stat-val { font-size: 16px; }
-  .fh-court { left: 28px; right: 28px; }
+  .fh-court        { left: 28px; right: 28px; }
   .fh-sidebar-track { height: 150px; width: 18px; }
-  .fh-backboard { width: 90px; height: 55px; }
+  .fh-backboard    { width: 90px; height: 55px; }
   .fh-backboard-inner { width: 56px; height: 38px; }
-  .fh-rim-ring { width: 70px; height: 22px; }
+  .fh-rim-ring     { width: 70px; height: 22px; }
   .fh-net-container { width: 48px; height: 38px; }
 }
 
 @media (max-width: 480px) {
-  .fh-hud-court { display: none; }
-  .fh-hud-center { gap: 14px; }
-  .fh-court { left: 22px; right: 22px; top: 52px; }
-  .fh-sidebar--left { left: 4px; }
+  .fh-hud-court   { display: none; }
+  .fh-hud-center  { gap: 14px; }
+  .fh-court       { left: 22px; right: 22px; top: 52px; }
+  .fh-sidebar--left  { left: 4px; }
   .fh-sidebar--right { right: 4px; }
-  .fh-sidebar-track { height: 120px; width: 16px; }
+  .fh-sidebar-track  { height: 120px; width: 16px; }
 }
+
+/* ── Landscape Phone (height ≤ 500px) ── */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* HUD — single tight strip */
+  .fh-hud {
+    height: 40px;
+    padding: 0 8px;
+  }
+  .fh-hud-logo     { font-size: 16px; }
+  .fh-hud-name     { font-size: 12px; letter-spacing: 1px; }
+  .fh-hud-court    { font-size: 9px; padding: 2px 8px; }
+  .fh-hud-center   { gap: 12px; }
+  .fh-hud-stat-label { font-size: 8px; }
+  .fh-hud-stat-val { font-size: 14px; }
+  .fh-menu-btn     { font-size: 11px; padding: 4px 10px; }
+
+  .fh-fusion-topbar { top: 40px; }
+  .fh-rim-label    { top: 48px; right: 12px; font-size: 10px; }
+
+  /* Court fills remaining height */
+  .fh-court {
+    top: 46px;
+    left: 24px;
+    right: 24px;
+    bottom: 56px;
+  }
+
+  /* Bottom fusion sidebar */
+  .fh-sidebar--left  { left: 2px; }
+  .fh-sidebar--right { right: 2px; }
+  .fh-sidebar-track  { height: 100px; width: 16px; }
+
+  /* Backboard/rim scaled down */
+  .fh-backboard        { width: 80px; height: 50px; }
+  .fh-backboard-inner  { width: 50px; height: 34px; }
+  .fh-backboard-square { width: 26px; height: 22px; }
+  .fh-fusion-text      { font-size: 9px; top: -14px; }
+  .fh-pole             { height: 20px; }
+  .fh-rim-ring         { width: 64px; height: 18px; border-width: 5px; }
+  .fh-net-container    { width: 42px; height: 32px; }
+
+  /* Crowd smaller */
+  .fh-crowd-dot { width: 4px !important; height: 4px !important; }
+
+  /* Players smaller */
+  .fh-player-body { width: 22px; height: 30px; }
+
+  /* Ball smaller */
+  .fh-ball { width: 24px !important; height: 24px !important; }
+
+  /* Shoot button — bigger tap target at bottom */
+  .fh-shoot-btn {
+    width: 52px !important;
+    height: 52px !important;
+    font-size: 20px !important;
+  }
+
+  /* Bottom fusion bar compact */
+  .fh-fusion-bar  { padding: 6px 12px; bottom: 4px; font-size: 12px; }
+  .fh-fusion-text-bar { font-size: 10px; }
+
+  /* Start screen landscape: horizontal layout */
+  .fh-start-screen { flex-direction: row; align-items: center; padding: 12px; gap: 24px; }
+  .fh-start-content { width: auto; flex: 1; }
+  .fh-start-icon   { font-size: 52px; margin-bottom: 8px; }
+  .fh-start-title  { font-size: clamp(22px, 5vw, 36px); margin-bottom: 6px; }
+  .fh-start-sub    { font-size: 12px; margin-bottom: 18px; }
+  .fh-start-btn    { padding: 12px 32px; font-size: 14px; }
+  .fh-back-btn     { padding: 8px 20px; font-size: 12px; margin-top: 10px; }
+
+  /* End screen landscape */
+  .fh-end-screen  { flex-direction: row; padding: 12px; }
+  .fh-end-card    { padding: 16px 20px; width: auto; min-width: 320px; }
+  .fh-end-title   { font-size: 24px; margin-bottom: 14px; }
+  .fh-end-stats   { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
+  .fh-end-val     { font-size: 18px; }
+
+  /* Level-up card smaller */
+  .fh-levelup-card    { padding: 20px 28px; min-width: auto; width: min(90vw, 320px); }
+  .fh-levelup-check   { font-size: 36px; margin-bottom: 6px; }
+  .fh-levelup-done    { font-size: 16px; }
+  .fh-levelup-name    { font-size: 22px; }
+  .fh-levelup-arrow   { font-size: 20px; margin: 6px 0; }
+
+  /* Popup */
+  .fh-end-pop         { padding: 18px 20px; }
+  .fh-end-pop-icon    { font-size: 44px; }
+  .fh-end-pop-title   { font-size: 20px; }
+}

@@ -320,7 +320,7 @@
   transform: scale(0.96);
 }
 
-/* ── Responsive ── */
+/* ── Mobile Portrait (≤700px) ── */
 @media (max-width: 700px) {
   .ssp-hud       { display: flex; justify-content: flex-start; gap: 6px; padding: 10px 14px; }
   .ssp-hud-cell  { min-width: 70px; padding: 8px 10px; }
@@ -329,3 +329,48 @@
   .ssp-title     { font-size: 1.7rem; }
   .ssp-stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
 }
+
+/* ── Landscape Phone (height ≤ 500px) ── */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* HUD — ultracompact horizontal strip */
+  .ssp-hud {
+    top: calc(6px + var(--sat, 0px));
+    left: calc(6px + var(--sal, 0px));
+    right: auto;
+    padding: 6px 10px;
+    gap: 5px;
+    border-radius: 10px;
+  }
+  .ssp-hud-cell  { min-width: 58px; padding: 5px 8px; border-radius: 7px; }
+  .ssp-hud-lbl   { font-size: 0.5rem; letter-spacing: 1px; margin-bottom: 2px; }
+  .ssp-hud-val   { font-size: 0.9rem; }
+  .ssp-hud-sub   { font-size: 0.45rem; }
+
+  /* Canvas fills entire screen — it's already 100% but just be explicit */
+  .ssp-canvas { cursor: crosshair; }
+
+  /* Overlay card — compact for landscape */
+  .ssp-card {
+    padding: 20px 24px;
+    max-width: 480px;
+    width: 92vw;
+    max-height: 88dvh;
+    overflow-y: auto;
+  }
+  .ssp-title    { font-size: clamp(1.2rem, 5vw, 1.8rem); margin-bottom: 6px; }
+  .ssp-subtitle { font-size: 0.82rem; margin-bottom: 16px; }
+
+  .ssp-instructions { padding: 12px 14px; margin: 14px 0; }
+  .ssp-instr-row    { font-size: 0.8rem; }
+
+  .ssp-stats-grid   { grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+  .ssp-stat-item    { padding: 8px 6px; }
+  .ssp-stat-lbl     { font-size: 0.5rem; }
+  .ssp-stat-val     { font-size: 1.1rem; }
+
+  .ssp-btn {
+    padding: 10px 24px;
+    font-size: 0.88rem;
+    margin-top: 6px;
+  }
+}
