@@ -9,7 +9,7 @@ import GameCard from "./GameCard";
 import { CloseOutlined } from "@ant-design/icons";
 import { getScoreSummary } from "../../utils/scoreApi";
 
-const PLAYABLE = new Set(["orb-drive", "fusion-hoops", "sky-shot-pro"]);
+const PLAYABLE = new Set(["orb-drive", "fusion-hoops", "sky-shot-pro", "neuroflight"]);
 
 export default function GamesGrid() {
   const navigate = useNavigate();

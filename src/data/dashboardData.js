@@ -116,23 +116,38 @@ const allGames = [
       "Complete all targets before the timer runs out to advance to the next level.",
     ],
   },
+  {
+    id: "neuroflight", icon: "✈️", title: "NeuroFlight",
+    type: "Aviation Therapy", progress: 0, xp: 0,
+    color: "#00c8ff", difficulty: "Medium",
+    desc: "A 3D aviation game to treat Amblyopia and eye misalignment using clinical techniques.",
+    instructions: [
+      "Act as a pilot to transport passengers safely through obstacles.",
+      "Maintain clear alignment to keep the plane centered and stable.",
+      "Force your brain to use both eyes via dichoptic viewing signals.",
+      "Track incoming hazards to improve smooth pursuit and saccadic movements.",
+      "Complete the mission without stressing out your passengers with collisions.",
+    ],
+  },
 ];
 
-// Extract the required top 3 games
+// Extract the required top games
 const orbDrive = allGames.find(g => g.id === "orb-drive");
 const fusionHoops = allGames.find(g => g.id === "fusion-hoops");
 const skyShotPro = allGames.find(g => g.id === "sky-shot-pro");
+const neuroFlight = allGames.find(g => g.id === "neuroflight");
 
 // Extract remaining games and shuffle them
 let others = allGames.filter(g => 
   g.id !== "orb-drive" && 
   g.id !== "fusion-hoops" && 
-  g.id !== "sky-shot-pro"
+  g.id !== "sky-shot-pro" && 
+  g.id !== "neuroflight"
 );
 others.sort(() => Math.random() - 0.5);
 
 // The final active game order
-export const games = [orbDrive, fusionHoops, skyShotPro, ...others];
+export const games = [neuroFlight, orbDrive, fusionHoops, skyShotPro, ...others];
 
 export const metrics = [
   { label: "Visual Acuity", value: 78, unit: "%", color: "#00f5ff", icon: "👁" },

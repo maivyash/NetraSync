@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import PlayOrbDrive from "./pages/PlayOrbDrive";
 import PlayFusionHoops from "./pages/PlayFusionHoops";
 import PlaySkyShotPro from "./pages/PlaySkyShotPro";
+import PlayNeuroFlight from "./pages/PlayNeuroFlight";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PlayShapeMatch from "./pages/PlayShapeMatch";
 import { FaceCursorProvider } from "./context/FaceCursorContext";
@@ -47,6 +48,7 @@ function App() {
             <Route path="/play/orb-drive" element={<ProtectedRoute><PlayOrbDrive /></ProtectedRoute>} />
             <Route path="/play/fusion-hoops" element={<ProtectedRoute><PlayFusionHoops /></ProtectedRoute>} />
             <Route path="/play/sky-shot-pro" element={<ProtectedRoute><PlaySkyShotPro /></ProtectedRoute>} />
+            <Route path="/play/neuroflight" element={<ProtectedRoute><PlayNeuroFlight /></ProtectedRoute>} />
             <Route path="/teen" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
             <Route path="/play/shape-match" element={<ProtectedRoute><PlayShapeMatch /></ProtectedRoute>} />
