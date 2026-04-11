@@ -32,8 +32,8 @@ export default function EyeTrackingBadge({ status: statusProp }) {
   return (
     <div style={{
       position: "fixed",
-      top: 14,
-      right: 14,
+      top: "calc(14px + env(safe-area-inset-top, 0px))",
+      right: "calc(14px + env(safe-area-inset-right, 0px))",
       zIndex: 2100,
       display: "flex",
       alignItems: "center",

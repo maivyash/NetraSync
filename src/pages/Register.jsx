@@ -222,9 +222,13 @@ export default function Register() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data || "Registration failed");
-        console.log(data);
-
+        // data is a JSON object — extract the string message properly
+        const errMsg =
+          data?.error ||
+          data?.message ||
+          data?.details ||
+          `Registration failed (HTTP ${response.status})`;
+        throw new Error(errMsg);
       }
 
       message.success({

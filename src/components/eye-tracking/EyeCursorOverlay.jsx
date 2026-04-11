@@ -45,6 +45,7 @@ export default function EyeCursorOverlay() {
     position: "fixed",
     pointerEvents: "none",
     zIndex: 9999,
+    touchAction: "none",
     // NO transition — OEF already provides smoothing; CSS transition adds lag
   };
 

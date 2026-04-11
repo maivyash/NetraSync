@@ -181,11 +181,54 @@ p  { color: var(--text-secondary); margin: 0; }
 .animate-float     { animation: float 3s ease-in-out infinite; }
 .animate-pulse     { animation: pulse-glow 2s ease-in-out infinite; }
 
-/* ── RESPONSIVE LANDING ── */
+/* ── RESPONSIVE — Mobile-first global rules ── */
+
+/* Prevent iOS rubber-band scroll on game full-screen pages */
+html, body {
+  overscroll-behavior: none;
+}
+
+/* Safe-area support for notch devices (viewport-fit=cover) */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+
+/* Touch-interaction quality */
+* { -webkit-tap-highlight-color: transparent; }
+button, [role="button"] {
+  touch-action: manipulation; /* kills 300ms tap delay */
+}
+
+/* Game pages fill the entire screen (real viewport height on mobile) */
+.game-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100dvw;
+  height: 100dvh;
+  overflow: hidden;
+  /* shift content clear of notch/home bar */
+  padding-top: var(--sat);
+  padding-right: var(--sar);
+  padding-bottom: var(--sab);
+  padding-left: var(--sal);
+}
+
+/* Eye badge — move down on mobile to avoid notch overlap */
 @media (max-width: 768px) {
   section { padding: 40px 20px !important; }
   nav { padding: 12px 20px !important; }
 }
+
+/* Landscape phone layout hints (height < 500px) */
+@media (max-height: 500px) and (orientation: landscape) {
+  body  { font-size: 14px; }
+  h1    { font-size: clamp(1.2rem, 4vw, 2rem); }
+  h2    { font-size: clamp(1rem, 3vw, 1.4rem); }
+}
+
 
 /* ── ANTD OVERRIDES (dark gaming) ── */
 .ant-form-item-label > label {

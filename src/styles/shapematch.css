@@ -228,3 +228,66 @@
   text-align: center;
   box-shadow: 0 0 40px rgba(0, 255, 136, 0.2);
 }
+
+/* ============================================================
+   RESPONSIVE — Mobile & Landscape
+   ============================================================ */
+
+/* ── Mobile Portrait (≤768px) ── */
+@media (max-width: 768px) {
+  .shapematch-title { font-size: 1.3rem; }
+  .shapematch-sub   { font-size: 0.65rem; }
+
+  .shapematch-play-area {
+    flex-direction: column;
+    margin: 12px 12px 80px;
+    gap: 12px;
+  }
+
+  .sm-hud-bar {
+    top: 60px;
+    left: 8px; right: 8px;
+    padding: 6px 10px;
+    gap: 16px;
+  }
+  .sm-hud-num { font-size: 1.2rem; }
+  .sm-hud-lbl { font-size: 0.55rem; }
+
+  .sm-resultCard { padding: 20px 14px; }
+}
+
+/* ── Landscape Phone (height ≤ 500px) ── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .shapematch-title, .shapematch-sub { display: none; }
+
+  .sm-hud-bar {
+    top: calc(4px + var(--sat, 0px));
+    left: 4px; right: 4px;
+    padding: 4px 10px;
+    gap: 20px;
+    border-radius: 8px;
+  }
+  .sm-hud-num { font-size: 1rem; }
+  .sm-hud-lbl { font-size: 0.5rem; }
+
+  /* Horizontal side-by-side panels in landscape */
+  .shapematch-play-area {
+    flex-direction: row;
+    margin: 44px 8px 8px 8px;
+    gap: 8px;
+  }
+
+  .shapematch-zone { border-radius: 10px; }
+
+  .shapematch-zone-label {
+    font-size: 0.55rem;
+    padding: 2px 8px;
+    top: 8px; left: 8px;
+  }
+
+  /* Bigger tap/drag targets */
+  .sm-shape  { min-width: 44px; min-height: 44px; }
+  .sm-target { min-width: 44px; min-height: 44px; }
+
+  .sm-resultCard { padding: 14px 12px; max-width: 340px; }
+}

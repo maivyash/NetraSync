@@ -148,6 +148,15 @@ router.post("/register", async (req, res) => {
     } catch (err) {
         if (connection) await connection.rollback();
         console.error("Registration error:", err);
+
+        // MySQL duplicate entry (email already exists)
+        if (err.code === "ER_DUP_ENTRY" || err.errno === 1062) {
+            return res.status(409).json({
+                success: false,
+                error: "This email is already registered. Please login or use a different email.",
+            });
+        }
+
         res.status(500).json({
             success: false,
             error: "Registration failed. Please try again.",
