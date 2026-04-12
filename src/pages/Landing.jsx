@@ -144,6 +144,13 @@ function ParticleCanvas() {
 function EyeOrb() {
     const [scanY, setScanY] = useState(0);
     const [pulse, setPulse] = useState(0);
+    const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+    useEffect(() => {
+        const handleResize = () => setWindowWidth(window.innerWidth);
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
 
     useEffect(() => {
         let frame = 0;
@@ -155,8 +162,10 @@ function EyeOrb() {
         return () => clearInterval(id);
     }, []);
 
+    const orbSize = Math.min(window.innerWidth * 0.8, 360);
+
     return (
-        <div style={{ position: "relative", width: 360, height: 360, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "relative", width: "clamp(240px, 70vw, 360px)", aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {/* SVG rings */}
             <svg viewBox="0 0 360 360" style={{ position: "absolute", inset: 0, animation: "spin-slow 20s linear infinite" }}>
                 <defs>
@@ -191,7 +200,7 @@ function EyeOrb() {
 
             {/* Inner eye circle with scan */}
             <div style={{
-                width: 200, height: 200, borderRadius: "50%",
+                width: "clamp(120px, 50vw, 200px)", height: "clamp(120px, 50vw, 200px)", borderRadius: "50%",
                 background: "radial-gradient(circle, rgba(0,245,255,0.08) 0%, rgba(5,8,16,0.9) 70%)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 position: "relative", overflow: "hidden",
@@ -216,7 +225,7 @@ function EyeOrb() {
                 }} />
                 {/* Eye */}
                 <div style={{
-                    fontSize: 80, filter: "drop-shadow(0 0 24px rgba(0,245,255,0.8))",
+                    fontSize: "clamp(48px, 12vw, 80px)", filter: "drop-shadow(0 0 24px rgba(0,245,255,0.8))",
                     animation: "pulse-glow-eye 3s ease-in-out infinite",
                 }}>👁</div>
             </div>
@@ -229,8 +238,16 @@ function TiltCard({ children, color, delay, isVisible }) {
     const cardRef = useRef(null);
     const [transform, setTransform] = useState("perspective(800px) rotateX(0deg) rotateY(0deg)");
     const [glowPos, setGlowPos] = useState({ x: 50, y: 50 });
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
 
     const handleMouseMove = useCallback((e) => {
+        if (isMobile) return;
         const card = cardRef.current;
         if (!card) return;
         const rect = card.getBoundingClientRect();
@@ -240,7 +257,7 @@ function TiltCard({ children, color, delay, isVisible }) {
         const rotateX = (0.5 - y) * 12;
         setTransform(`perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`);
         setGlowPos({ x: x * 100, y: y * 100 });
-    }, []);
+    }, [isMobile]);
 
     const handleMouseLeave = useCallback(() => {
         setTransform("perspective(800px) rotateX(0deg) rotateY(0deg) scale(1)");
@@ -329,7 +346,7 @@ function StatItem({ stat, isVisible }) {
             transition: "all 0.8s cubic-bezier(0.4,0,0.2,1)",
         }}>
             <div style={{
-                fontFamily: "var(--font-heading)", fontSize: "clamp(1.6rem,3vw,2.6rem)",
+                fontFamily: "var(--font-heading)", fontSize: "clamp(1.2rem, 4vw, 2.6rem)",
                 fontWeight: 900, background: "var(--grad-accent)",
                 WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
                 filter: "drop-shadow(0 0 8px rgba(0,245,255,0.3))",
@@ -338,7 +355,7 @@ function StatItem({ stat, isVisible }) {
                 {count}{stat.suffix}
             </div>
             <div style={{
-                color: "var(--text-secondary)", fontSize: "0.8rem", marginTop: 6,
+                color: "var(--text-secondary)", fontSize: "clamp(0.65rem, 2vw, 0.8rem)", marginTop: 6,
                 fontFamily: "var(--font-body)", letterSpacing: "0.5px",
             }}>
                 {stat.label}
@@ -355,7 +372,7 @@ function HudBadge({ label, value, color, style, isVisible }) {
             ...style,
             background: "rgba(13,17,23,0.85)",
             backdropFilter: "blur(16px)",
-            padding: "14px 22px",
+            padding: "clamp(10px, 2vw, 14px) clamp(14px, 3vw, 22px)",
             borderRadius: 8,
             opacity: isVisible ? 1 : 0,
             transform: isVisible ? "translate(0,0) scale(1)" : "translate(20px, 20px) scale(0.8)",
@@ -363,12 +380,13 @@ function HudBadge({ label, value, color, style, isVisible }) {
             boxShadow: `0 0 20px ${color}10, inset 0 1px 0 rgba(255,255,255,0.05)`,
             animation: isVisible ? "float 4s ease-in-out infinite" : "none",
             zIndex: 2,
+            fontSize: "clamp(0.7rem, 2vw, 0.9rem)",
         }}>
-            <div style={{ fontSize: "1.4rem", fontFamily: "var(--font-heading)", color, fontWeight: 900, letterSpacing: "0.05em" }}>
+            <div style={{ fontSize: "clamp(1rem, 3vw, 1.4rem)", fontFamily: "var(--font-heading)", color, fontWeight: 900, letterSpacing: "0.05em" }}>
                 {value}
             </div>
             <div style={{
-                fontSize: "0.65rem", color: "var(--text-muted)", textTransform: "uppercase",
+                fontSize: "clamp(0.5rem, 1.5vw, 0.65rem)", color: "var(--text-muted)", textTransform: "uppercase",
                 letterSpacing: 1.5, fontFamily: "var(--font-heading)", marginTop: 2,
             }}>
                 {label}
@@ -421,11 +439,13 @@ export default function Landing() {
             <nav id="main-nav" style={{
                 position: "sticky", top: 0, zIndex: 100,
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "16px 48px",
+                padding: "16px clamp(12px, 4vw, 48px)",
                 background: navSolid ? "rgba(5,8,16,0.95)" : "rgba(5,8,16,0.6)",
                 backdropFilter: "blur(24px)",
                 borderBottom: navSolid ? "1px solid rgba(0,245,255,0.15)" : "1px solid transparent",
                 transition: "all 0.4s cubic-bezier(0.4,0,0.2,1)",
+                flexWrap: "wrap",
+                gap: "8px",
             }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{
@@ -445,23 +465,28 @@ export default function Landing() {
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     <a href="#features" style={{
                         color: "var(--text-secondary)", textDecoration: "none",
-                        fontFamily: "var(--font-heading)", fontSize: "0.7rem",
+                        fontFamily: "var(--font-heading)", fontSize: "clamp(0.6rem, 2vw, 0.7rem)",
                         letterSpacing: 2, textTransform: "uppercase",
-                        transition: "color 0.3s", padding: "8px 16px",
+                        transition: "color 0.3s", padding: "8px 12px",
+                        display: "none",
                     }}
                         onMouseEnter={e => e.target.style.color = "#00f5ff"}
                         onMouseLeave={e => e.target.style.color = "var(--text-secondary)"}
                     >Features</a>
                     <a href="#science" style={{
                         color: "var(--text-secondary)", textDecoration: "none",
-                        fontFamily: "var(--font-heading)", fontSize: "0.7rem",
+                        fontFamily: "var(--font-heading)", fontSize: "clamp(0.6rem, 2vw, 0.7rem)",
                         letterSpacing: 2, textTransform: "uppercase",
-                        transition: "color 0.3s", padding: "8px 16px",
+                        transition: "color 0.3s", padding: "8px 12px",
+                        display: "none",
                     }}
                         onMouseEnter={e => e.target.style.color = "#00f5ff"}
                         onMouseLeave={e => e.target.style.color = "var(--text-secondary)"}
                     >Science</a>
-                    <button className="btn-neon" onClick={() => navigate("/login")}>
+                    <button className="btn-neon" onClick={() => navigate("/login")} style={{
+                        padding: "10px 20px",
+                        fontSize: "clamp(0.65rem, 2vw, 0.8rem)",
+                    }}>
                         <span>Launch App</span>
                     </button>
                 </div>
@@ -470,21 +495,23 @@ export default function Landing() {
             {/* ── HERO SECTION ── */}
             <section ref={heroRef} style={{
                 position: "relative", zIndex: 1,
-                minHeight: "92vh", display: "flex", alignItems: "center",
-                padding: "80px 48px",
-                gap: 64,
+                minHeight: "clamp(70vh, 92vh, 100vh)", display: "flex", alignItems: "center",
+                padding: "clamp(40px, 8vw, 80px) clamp(20px, 4vw, 48px)",
+                gap: "clamp(24px, 5vw, 64px)",
+                flexDirection: window.innerWidth < 900 ? "column" : "row",
             }}>
                 {/* Left copy */}
-                <div style={{ flex: 1, maxWidth: 640 }}>
+                <div style={{ flex: 1, maxWidth: 640, width: "100%" }}>
                     {/* HUD Badge */}
                     <div style={{
                         display: "inline-flex", alignItems: "center", gap: 10,
-                        padding: "8px 18px", marginBottom: 28,
+                        padding: "8px 16px", marginBottom: "clamp(16px, 4vw, 28px)",
                         background: "rgba(0,255,136,0.06)",
                         clipPath: "polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px))",
                         opacity: heroVisible ? 1 : 0,
                         transform: heroVisible ? "translateY(0)" : "translateY(20px)",
                         transition: "all 0.6s cubic-bezier(0.4,0,0.2,1)",
+                        fontSize: "clamp(0.6rem, 2vw, 0.65rem)",
                     }}>
                         <span style={{
                             width: 8, height: 8, borderRadius: "50%", background: "#00ff88",
@@ -505,6 +532,7 @@ export default function Landing() {
                         transform: heroVisible ? "translateY(0)" : "translateY(30px)",
                         transition: "all 0.8s cubic-bezier(0.4,0,0.2,1) 0.15s",
                         marginBottom: 12, letterSpacing: "0.02em",
+                        fontSize: "clamp(1.8rem, 6vw, 3.5rem)",
                     }}>
                         Train Your Eyes.<br />
                         <span className="glow-text">
@@ -514,7 +542,7 @@ export default function Landing() {
 
                     {/* Description */}
                     <p style={{
-                        fontSize: "1.05rem", lineHeight: 1.8,
+                        fontSize: "clamp(0.9rem, 3vw, 1.05rem)", lineHeight: 1.8,
                         color: "var(--text-secondary)", marginTop: 16, maxWidth: 520,
                         opacity: heroVisible ? 1 : 0,
                         transform: heroVisible ? "translateY(0)" : "translateY(20px)",
@@ -530,14 +558,15 @@ export default function Landing() {
                         opacity: heroVisible ? 1 : 0,
                         transform: heroVisible ? "translateY(0)" : "translateY(20px)",
                         transition: "all 0.8s cubic-bezier(0.4,0,0.2,1) 0.55s",
+                        justifyContent: "flex-start",
                     }}>
-                        <button className="btn-neon" style={{ fontSize: "0.95rem", padding: "14px 36px" }}
+                        <button className="btn-neon" style={{ fontSize: "clamp(0.8rem, 2vw, 0.95rem)", padding: "clamp(12px, 3vw, 14px) clamp(24px, 4vw, 36px)" }}
                             onClick={() => navigate("/login")}>
                             <span>⚡ Begin Training</span>
                         </button>
                         <button style={{
-                            fontFamily: "var(--font-heading)", fontSize: "0.85rem", fontWeight: 600,
-                            letterSpacing: 1, padding: "14px 36px", borderRadius: "var(--radius-btn)",
+                            fontFamily: "var(--font-heading)", fontSize: "clamp(0.75rem, 2vw, 0.85rem)", fontWeight: 600,
+                            letterSpacing: 1, padding: "clamp(12px, 3vw, 14px) clamp(24px, 4vw, 36px)", borderRadius: "var(--radius-btn)",
                             border: "1px solid rgba(255,255,255,0.08)",
                             background: "rgba(255,255,255,0.03)", color: "var(--text-secondary)", cursor: "pointer",
                             transition: "var(--transition)",
@@ -561,7 +590,8 @@ export default function Landing() {
                 {/* Right — Eye Orb */}
                 <div style={{
                     flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                    position: "relative", minHeight: 420,
+                    position: "relative", minHeight: "clamp(300px, 50vw, 420px)",
+                    width: "100%",
                     opacity: heroVisible ? 1 : 0,
                     transform: heroVisible ? "scale(1)" : "scale(0.85)",
                     transition: "all 1.2s cubic-bezier(0.4,0,0.2,1) 0.3s",
@@ -570,9 +600,9 @@ export default function Landing() {
 
                     {/* Floating HUD Badges */}
                     <HudBadge label="Visual Acuity" value="+42%" color="#00ff88"
-                        style={{ top: "5%", left: "-5%" }} isVisible={heroVisible} />
+                        style={{ top: "5%", left: "-8%" }} isVisible={heroVisible} />
                     <HudBadge label="Convergence" value="↑ 3x" color="#00f5ff"
-                        style={{ bottom: "10%", right: "-5%", animationDelay: "1s" }} isVisible={heroVisible} />
+                        style={{ bottom: "10%", right: "-8%", animationDelay: "1s" }} isVisible={heroVisible} />
                     <HudBadge label="Neural Sync" value="98.7%" color="#a855f7"
                         style={{ bottom: "5%", left: "5%", animationDelay: "2s" }} isVisible={heroVisible} />
                 </div>
@@ -582,19 +612,19 @@ export default function Landing() {
             <div ref={statsRef} style={{
                 position: "relative", zIndex: 1,
                 background: "rgba(0,245,255,0.03)",
-                padding: "40px 48px",
-                display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 24, textAlign: "center",
+                padding: "clamp(30px, 5vw, 40px) clamp(16px, 4vw, 48px)",
+                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "clamp(16px, 3vw, 24px)", textAlign: "center",
             }}>
                 {/* Horizontal neon line top */}
                 <div style={{
                     position: "absolute", top: 0, left: "5%", right: "5%", height: 1,
                     background: "linear-gradient(90deg, transparent, rgba(0,245,255,0.3), rgba(168,85,247,0.3), transparent)",
                 }} />
-                {stats.map((s, i) => (
+                {/* {stats.map((s, i) => (
                     <div key={s.label} style={{ transitionDelay: `${i * 150}ms` }}>
                         <StatItem stat={s} isVisible={statsVisible} />
                     </div>
-                ))}
+                ))} */}
                 {/* Horizontal neon line bottom */}
                 <div style={{
                     position: "absolute", bottom: 0, left: "5%", right: "5%", height: 1,
@@ -603,15 +633,15 @@ export default function Landing() {
             </div>
 
             {/* ── FEATURES ── */}
-            <section id="features" ref={featRef} style={{ position: "relative", zIndex: 1, padding: "100px 48px" }}>
+            <section id="features" ref={featRef} style={{ position: "relative", zIndex: 1, padding: "clamp(60px, 10vw, 100px) clamp(20px, 4vw, 48px)" }}>
                 <div style={{
-                    textAlign: "center", marginBottom: 64,
+                    textAlign: "center", marginBottom: "clamp(40px, 8vw, 64px)",
                     opacity: featVisible ? 1 : 0,
                     transform: featVisible ? "translateY(0)" : "translateY(30px)",
                     transition: "all 0.8s cubic-bezier(0.4,0,0.2,1)",
                 }}>
                     <div style={{
-                        fontFamily: "var(--font-heading)", fontSize: "0.65rem",
+                        fontFamily: "var(--font-heading)", fontSize: "clamp(0.55rem, 2vw, 0.65rem)",
                         letterSpacing: 4, textTransform: "uppercase",
                         color: "#a855f7", marginBottom: 16,
                     }}>
@@ -622,13 +652,13 @@ export default function Landing() {
                     </h2>
                     <p style={{
                         color: "var(--text-secondary)", marginTop: 16, maxWidth: 520,
-                        margin: "16px auto 0", fontSize: "0.95rem", lineHeight: 1.7,
+                        margin: "16px auto 0", fontSize: "clamp(0.85rem, 2.5vw, 0.95rem)", lineHeight: 1.7,
                     }}>
                         Science-backed therapy wrapped in a gaming engine built for maximum neural engagement.
                     </p>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(270px,1fr))", gap: 24, maxWidth: 1200, margin: "0 auto" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "clamp(16px, 3vw, 24px)", maxWidth: 1200, margin: "0 auto" }}>
                     {features.map((f) => (
                         <TiltCard key={f.title} color={f.color} delay={f.delay} isVisible={featVisible}>
                             <div style={{
@@ -651,12 +681,12 @@ export default function Landing() {
                             </div>
                             <h3 style={{
                                 fontFamily: "var(--font-heading)", color: f.color,
-                                fontSize: "0.85rem", letterSpacing: "0.05em", marginBottom: 12,
+                                fontSize: "clamp(0.75rem, 2vw, 0.85rem)", letterSpacing: "0.05em", marginBottom: 12,
                                 textTransform: "uppercase",
                             }}>
                                 {f.title}
                             </h3>
-                            <p style={{ fontSize: "0.88rem", lineHeight: 1.75, color: "var(--text-secondary)" }}>
+                            <p style={{ fontSize: "clamp(0.8rem, 2vw, 0.88rem)", lineHeight: 1.75, color: "var(--text-secondary)" }}>
                                 {f.desc}
                             </p>
                         </TiltCard>
@@ -665,16 +695,16 @@ export default function Landing() {
             </section>
 
             {/* ── HOW IT WORKS timeline ── */}
-            <section id="science" style={{ position: "relative", zIndex: 1, padding: "80px 48px" }}>
+            <section id="science" style={{ position: "relative", zIndex: 1, padding: "clamp(60px, 10vw, 80px) clamp(20px, 4vw, 48px)" }}>
                 <HowItWorks />
             </section>
 
             {/* ── CTA ── */}
             <section ref={ctaRef} style={{
-                position: "relative", zIndex: 1, textAlign: "center", padding: "80px 48px",
+                position: "relative", zIndex: 1, textAlign: "center", padding: "clamp(60px, 10vw, 80px) clamp(20px, 4vw, 48px)",
             }}>
                 <div style={{
-                    maxWidth: 720, margin: "0 auto", padding: "72px 48px",
+                    maxWidth: 720, margin: "0 auto", padding: "clamp(40px, 6vw, 72px) clamp(24px, 4vw, 48px)",
                     background: "radial-gradient(ellipse at 50% 0%, rgba(0,245,255,0.08) 0%, rgba(168,85,247,0.04) 50%, transparent 80%)",
                     borderRadius: 16, position: "relative", overflow: "hidden",
                     boxShadow: "inset 0 1px 0 rgba(0,245,255,0.1), 0 0 60px rgba(0,245,255,0.03)",
@@ -694,23 +724,23 @@ export default function Landing() {
                         filter: "blur(50px)", pointerEvents: "none",
                     }} />
 
-                    <div style={{ fontSize: 52, marginBottom: 24, filter: "drop-shadow(0 0 16px rgba(0,245,255,0.4))" }}>
+                    <div style={{ fontSize: "clamp(32px, 8vw, 52px)", marginBottom: 24, filter: "drop-shadow(0 0 16px rgba(0,245,255,0.4))" }}>
                         👁‍🗨
                     </div>
                     <h2 style={{
-                        fontFamily: "var(--font-heading)", fontSize: "clamp(1.4rem,3vw,2rem)",
+                        fontFamily: "var(--font-heading)", fontSize: "clamp(1.2rem, 4vw, 2rem)",
                         letterSpacing: "0.03em",
                     }}>
                         Ready to <span className="glow-text">Level Up</span> Your Vision?
                     </h2>
                     <p style={{
                         color: "var(--text-secondary)", margin: "18px auto 36px",
-                        maxWidth: 500, fontSize: "1rem", lineHeight: 1.7,
+                        maxWidth: 500, fontSize: "clamp(0.9rem, 2.5vw, 1rem)", lineHeight: 1.7,
                     }}>
                         Join thousands of patients reclaiming their visual health through the world's most advanced
                         game-based therapy platform.
                     </p>
-                    <button className="btn-neon" style={{ fontSize: "1rem", padding: "16px 52px" }}
+                    <button className="btn-neon" style={{ fontSize: "clamp(0.9rem, 2.5vw, 1rem)", padding: "clamp(12px, 3vw, 16px) clamp(32px, 5vw, 52px)" }}
                         onClick={() => navigate("/login")}>
                         <span>⚡ Start Your Journey</span>
                     </button>
@@ -720,8 +750,8 @@ export default function Landing() {
             {/* ── Footer ── */}
             <footer style={{
                 position: "relative", zIndex: 1, textAlign: "center",
-                padding: "28px 48px",
-                color: "var(--text-muted)", fontSize: "0.75rem",
+                padding: "clamp(16px, 3vw, 28px) clamp(16px, 4vw, 48px)",
+                color: "var(--text-muted)", fontSize: "clamp(0.6rem, 2vw, 0.75rem)",
                 fontFamily: "var(--font-heading)", letterSpacing: 1.5,
             }}>
                 <div style={{
@@ -745,15 +775,15 @@ function HowItWorks() {
     ];
 
     return (
-        <div ref={ref} style={{ maxWidth: 900, margin: "0 auto" }}>
+        <div ref={ref} style={{ maxWidth: 900, margin: "0 auto", padding: "0 clamp(16px, 4vw, 0)" }}>
             <div style={{
-                textAlign: "center", marginBottom: 56,
+                textAlign: "center", marginBottom: "clamp(40px, 8vw, 56px)",
                 opacity: isVisible ? 1 : 0,
                 transform: isVisible ? "translateY(0)" : "translateY(30px)",
                 transition: "all 0.8s cubic-bezier(0.4,0,0.2,1)",
             }}>
                 <div style={{
-                    fontFamily: "var(--font-heading)", fontSize: "0.65rem",
+                    fontFamily: "var(--font-heading)", fontSize: "clamp(0.55rem, 2vw, 0.65rem)",
                     letterSpacing: 4, textTransform: "uppercase",
                     color: "#00ff88", marginBottom: 16,
                 }}>
@@ -767,48 +797,49 @@ function HowItWorks() {
             <div style={{ position: "relative" }}>
                 {/* Vertical line */}
                 <div style={{
-                    position: "absolute", left: 32, top: 0, bottom: 0, width: 2,
+                    position: "absolute", left: "clamp(16px, 4vw, 32px)", top: 0, bottom: 0, width: 2,
                     background: "linear-gradient(180deg, rgba(0,245,255,0.3), rgba(168,85,247,0.3), rgba(0,255,136,0.3), rgba(255,107,53,0.2))",
                     opacity: isVisible ? 1 : 0,
                     transition: "opacity 1s ease 0.3s",
+                    display: window.innerWidth < 640 ? "none" : "block",
                 }} />
 
                 {steps.map((s, i) => (
                     <div key={s.num} style={{
-                        display: "flex", alignItems: "flex-start", gap: 32,
-                        marginBottom: i < steps.length - 1 ? 48 : 0,
-                        paddingLeft: 12,
+                        display: "flex", alignItems: "flex-start", gap: "clamp(16px, 4vw, 32px)",
+                        marginBottom: i < steps.length - 1 ? "clamp(32px, 6vw, 48px)" : 0,
+                        paddingLeft: "clamp(12px, 3vw, 12px)",
                         opacity: isVisible ? 1 : 0,
                         transform: isVisible ? "translateX(0)" : "translateX(-30px)",
                         transition: `all 0.7s cubic-bezier(0.4,0,0.2,1) ${0.3 + i * 0.15}s`,
                     }}>
                         {/* Numbered circle */}
                         <div style={{
-                            width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
+                            width: "clamp(36px, 8vw, 42px)", height: "clamp(36px, 8vw, 42px)", borderRadius: "50%", flexShrink: 0,
                             background: `${s.color}15`,
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 20, position: "relative", zIndex: 1,
+                            fontSize: "clamp(16px, 4vw, 20px)", position: "relative", zIndex: 1,
                             boxShadow: `0 0 20px ${s.color}20`,
                         }}>
                             {s.icon}
                         </div>
                         <div>
                             <div style={{
-                                fontFamily: "var(--font-heading)", fontSize: "0.6rem",
+                                fontFamily: "var(--font-heading)", fontSize: "clamp(0.5rem, 2vw, 0.6rem)",
                                 color: s.color, letterSpacing: 3, marginBottom: 4,
                                 opacity: 0.7,
                             }}>
                                 STEP {s.num}
                             </div>
                             <h3 style={{
-                                fontFamily: "var(--font-heading)", fontSize: "1rem",
+                                fontFamily: "var(--font-heading)", fontSize: "clamp(0.85rem, 2.5vw, 1rem)",
                                 color: "var(--text-primary)", letterSpacing: "0.03em",
                                 marginBottom: 6,
                             }}>
                                 {s.title}
                             </h3>
                             <p style={{
-                                fontSize: "0.88rem", lineHeight: 1.7,
+                                fontSize: "clamp(0.8rem, 2vw, 0.88rem)", lineHeight: 1.7,
                                 color: "var(--text-secondary)", maxWidth: 480,
                             }}>
                                 {s.desc}
